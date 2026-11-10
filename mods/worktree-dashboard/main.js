@@ -241,7 +241,7 @@ export default class WorktreeDashboard extends View {
     const rows = v_virtual_list("worktree-dashboard-list", items.length, items.map(item => item.kind === "group" ? 48 : item.kind === "error" ? 24 : 38), item => {
       const row = items[item];
       return row.kind === "group" ? `group-${row.group.key}` : row.kind === "error" ? `error-${row.group.key}` : idOf(row.group, row.entry);
-    }, range => items.slice(range.start, range.end).map((item, index) => row(item, range.start + index))).track_scroll(this.worktreeScroll);
+    }, range => items.slice(range.start, range.end).map((item, index) => row(item, range.start + index))).size_full().track_scroll(this.worktreeScroll);
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("worktree-dashboard-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
       .when(this.loading, el => el.child(this.loadingView(t, "Loading worktrees…")))
@@ -258,7 +258,7 @@ export default class WorktreeDashboard extends View {
       return h_flex().id(`branch-${at}`).flex_none().h(34).px(10).items_center().rounded(6).bg(at === this.branchAt ? t.selected : t.surface).hover(state => state.bg(t.hover)).cursor_pointer()
         .on_click((_event, cx) => { this.branchAt = at; this.activeInput().focus(); cx.notify(); })
         .child(div().truncate().text_color(t.foreground).child(branch));
-    })).track_scroll(this.branchScroll);
+    })).size_full().track_scroll(this.branchScroll);
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("branch-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
       .when(this.branchLoading, el => el.child(this.loadingView(t, "Loading branches…")))
