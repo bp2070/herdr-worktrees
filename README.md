@@ -60,6 +60,10 @@ Herdr currently exposes `herdr-app check` for headless initial-load/render valid
 
 Run those tests in a dedicated Herdr profile/configuration and fixture Git repository so they cannot create or remove a person's real worktrees. Keep them separate from `npm test`: native UI tests require a visible desktop session and are expected to be slower and more environment-dependent.
 
+### Required before list auto-scroll
+
+Do not replace the regular worktree or branch lists with `v_virtual_list` just to implement selected-row auto-scroll until this end-to-end harness exists. Two virtual-list implementations passed `herdr-app check` but rendered no rows in the live window, so initial-load validation is not enough to safely verify that change. The end-to-end suite must first prove that grouped worktree and branch rows render, then assert that moving selection past the viewport scrolls the selected row into view.
+
 ## Dependencies and assumptions
 
 - Git must be available on each listed machine.
