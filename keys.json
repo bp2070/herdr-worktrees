@@ -1,5 +1,10 @@
 {
   "mod:worktree-dashboard": {
-    "tab": "worktree-dashboard.cycle_focus"
+    "up": "worktree-dashboard.up",
+    "down": "worktree-dashboard.down",
+    "enter": "worktree-dashboard.enter",
+    "escape": "worktree-dashboard.escape",
+    "alt-shift-n": "worktree-dashboard.new",
+    "alt-shift-r": "worktree-dashboard.remove"
   }
 }

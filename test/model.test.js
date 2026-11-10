@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
-  normalizePath, pathContains, repoName, selectedId, shouldFocusSearch, slug,
-  spaceForWorktree, toggleInputFocus, visibleEntries, worktreeDestination, worktrees,
+  normalizePath, pathContains, repoName, selectedId, slug, spaceForWorktree,
+  visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktree-dashboard/model.js";
 
 const group = (key, branches, error = "") => ({
@@ -124,14 +124,6 @@ test("spaceForWorktree does not cross machine boundaries", () => {
 test("worktreeDestination creates a normalized safe destination and rejects blank names", () => {
   assert.equal(worktreeDestination("C:\\Users\\me", "app", "feature/login"), "C:/Users/me/.herdr/worktrees/app/feature-login");
   assert.equal(worktreeDestination("/home/me", "app", "   "), null);
-});
-
-test("focus helpers toggle input/list focus and reserve slash for searchable screens", () => {
-  assert.equal(toggleInputFocus(true), false);
-  assert.equal(toggleInputFocus(false), true);
-  assert.equal(shouldFocusSearch("/", false, true), true);
-  assert.equal(shouldFocusSearch("/", true, true), false);
-  assert.equal(shouldFocusSearch("/", false, false), false);
 });
 
 test("focus request is held through the initial loading screen then consumed by the list", () => {

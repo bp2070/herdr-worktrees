@@ -31,13 +31,15 @@ Open or toggle the floating dashboard:
 herdr-app do mod.open --name worktree-dashboard
 ```
 
-- `/` focuses filtering.
-- `Tab` switches between filtering and the result list.
-- `↑` / `↓` selects an item.
-- `Enter` opens the selected worktree.
-- `N` begins the new-worktree flow.
-- `R` opens Herdr's built-in worktree removal dialog for a non-main worktree with a Herdr space.
+The filter input retains keyboard focus. Use the mod-specific shortcuts in `keys.json`:
+
+- `↑` / `↓` changes the highlighted result while leaving the input focused.
+- `Enter` opens the highlighted worktree.
+- `Alt+Shift+N` begins the new-worktree flow.
+- `Alt+Shift+R` opens Herdr's built-in worktree removal dialog for a non-main highlighted worktree with a Herdr space.
 - `Esc` goes back or closes the dashboard.
+
+`Tab` is intentionally not mapped.
 
 The create flow lists local branches not already checked out by a worktree. It checks out the selected branch at `~/.herdr/worktrees/<repo>/<folder-name>` and opens it as a new Herdr space.
 

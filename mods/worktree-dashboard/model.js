@@ -82,9 +82,6 @@ export function worktreeDestination(userHome, repository, name) {
   return component ? `${normalizePath(userHome)}/.herdr/worktrees/${repository}/${component}` : null;
 }
 
-export const toggleInputFocus = inputFocused => !inputFocused;
-export const shouldFocusSearch = (key, inputFocused, hasSearch) => key === "/" && !inputFocused && hasSearch;
-
 // Records a focus request until the corresponding screen has rendered. The
 // view consumes it after native layout; tests can inspect this state without a
 // GPUI window or OS-level focus API.

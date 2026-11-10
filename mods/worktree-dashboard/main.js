@@ -3,8 +3,7 @@ import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { closeOverlay, exec, home, nextCommand, openOverlay, panes, props, run, spaces, theme } from "herdr";
 import {
   eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
-  repoName, selectedId, shouldFocusSearch, slug, spaceForWorktree, toggleInputFocus,
-  visibleEntries, worktreeDestination, worktrees,
+  repoName, selectedId, slug, spaceForWorktree, visibleEntries, worktreeDestination, worktrees,
 } from "./model.js";
 
 function folderOf(space, paneList = panes()) {
@@ -20,7 +19,7 @@ async function git(cwd, args, on) {
 export default class WorktreeDashboard extends View {
   init(_props, cx) {
     this.loading = true; this.refreshing = false; this.error = ""; this.groups = []; this.selected = null; this.focusRequests = new FocusRequests();
-    this.mode = "list"; this.inputFocused = true; this.handle = cx.focus_handle();
+    this.mode = "list";
     this.filter = ""; this.branchFilter = ""; this.branchAt = 0; this.branches = []; this.branchLoading = false; this.createGroup = null; this.branch = null;
     this.filterInput = this.makeInput("Filter worktrees by branch name…", (value, cx) => { this.filter = value; this.selectFirst(); cx.notify(); });
     this.branchInput = this.makeInput("Filter branches…", (value, cx) => { this.branchFilter = value; this.branchAt = 0; cx.notify(); });
@@ -29,9 +28,7 @@ export default class WorktreeDashboard extends View {
     // after the list screen is mounted inside the native overlay.
     cx.timer.every(15000, cx => this.refresh(cx));
     cx.spawn(async cx => {
-      for (;;) {
-        if (await nextCommand() === "cycle_focus") this.cycleFocus(cx);
-      }
+      for (;;) this.command(await nextCommand(), cx);
     });
     this.refresh(cx);
   }
@@ -39,8 +36,6 @@ export default class WorktreeDashboard extends View {
   makeInput(placeholder, change) {
     const input = InputState.new({ value: "", placeholder });
     input.on("change", (_event, cx) => change(input.value(), cx));
-    input.on("focus", (_event, cx) => { this.inputFocused = true; cx.notify(); });
-    input.on("blur", (_event, cx) => { this.inputFocused = false; cx.notify(); });
     return input;
   }
 
@@ -57,7 +52,7 @@ export default class WorktreeDashboard extends View {
     if (!items.length) return;
     if (this.mode === "branches") this.branchAt = moveIndex(this.branchAt, items.length, delta);
     else this.selected = moveSelectedId(this.groups, this.filter, this.selected, delta);
-    this.handle.focus();
+    this.activeInput().focus();
     cx.notify();
   }
 
@@ -164,37 +159,29 @@ export default class WorktreeDashboard extends View {
   }
   close() { const overlay = props()?.overlay; if (overlay) closeOverlay(overlay); }
 
-  cycleFocus(cx) {
-    if (this.mode === "name") return;
-    this.inputFocused = toggleInputFocus(this.inputFocused);
-    if (this.inputFocused) this.activeInput().focus();
-    else this.handle.focus();
-    cx.stop_propagation();
-    cx.notify();
-  }
-
-  key(event, cx) {
-    if (event.key === "escape") {
+  command(command, cx) {
+    if (command === "escape") {
       if (this.mode === "list") return this.close();
-      this.mode = this.mode === "name" ? "branches" : "list"; this.activeInput().focus(); return cx.notify();
+      this.mode = this.mode === "name" ? "branches" : "list";
+      this.focusRequests.request(this.mode);
+      cx.notify();
+      return this.scheduleRequestedFocus(cx);
     }
-    if (event.key === "tab") return this.cycleFocus(cx);
-    if (shouldFocusSearch(event.key, this.inputFocused, this.mode !== "name")) { this.inputFocused = true; this.activeInput().focus(); cx.stop_propagation(); return cx.notify(); }
-    if (event.key === "down") return this.move(1, cx);
-    if (event.key === "up") return this.move(-1, cx);
-    if (event.key === "enter") {
+    if (command === "down" && this.mode !== "name") return this.move(1, cx);
+    if (command === "up" && this.mode !== "name") return this.move(-1, cx);
+    if (command === "enter") {
       if (this.mode === "branches") return this.chooseBranch(cx);
       if (this.mode === "name") return this.createWorktree(cx);
       const selected = this.selectedEntry(); if (selected) return this.open(selected.entry, selected.group);
     }
-    if (event.key === "n" && this.mode === "list" && !this.inputFocused) { const selected = this.selectedEntry(); if (selected) return this.startCreate(selected.group, cx); }
-    if (event.key === "r" && this.mode === "list" && !this.inputFocused) { const selected = this.selectedEntry(); if (selected) return this.remove(selected.entry); }
+    if (command === "new" && this.mode === "list") { const selected = this.selectedEntry(); if (selected) return this.startCreate(selected.group, cx); }
+    if (command === "remove" && this.mode === "list") { const selected = this.selectedEntry(); if (selected) return this.remove(selected.entry); }
   }
 
   worktreeRow(entry, group, index, t) {
     const selected = this.selected === idOf(group, entry); const status = entry.dirty === null ? "status unavailable" : entry.dirty ? "changes" : "clean";
     return h_flex().id(`worktree-${group.key}-${index}`).flex_none().h(38).px(10).gap(9).items_center().rounded(6).cursor_pointer().bg(selected ? t.selected : t.surface).hover(state => state.bg(t.hover))
-      .on_click((_event, cx) => { this.selected = idOf(group, entry); this.handle.focus(); cx.notify(); })
+      .on_click((_event, cx) => { this.selected = idOf(group, entry); this.activeInput().focus(); cx.notify(); })
       .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(t.foreground).child(entry.branch))
       .when(entry.main, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child("main")))
       .when(Boolean(entry.space), el => el.child(div().flex_none().text_size(11).text_color(t.accent).child("open")))
@@ -209,7 +196,7 @@ export default class WorktreeDashboard extends View {
 
   inputField(input, t) {
     return Input.new(input).h(34).px(10).items_center().rounded(6).border(1)
-      .border_color(this.inputFocused ? t.accent : t.input).bg(t.background).text_color(t.foreground);
+      .border_color(t.accent).bg(t.background).text_color(t.foreground);
   }
 
   renderList(t) {
@@ -237,7 +224,7 @@ export default class WorktreeDashboard extends View {
     const branches = this.shownBranches();
     const rows = v_flex().id("branch-list").size_full().gap(2).overflow_y_scroll().children(branches.map((branch, index) =>
       h_flex().id(`branch-${index}`).flex_none().h(34).px(10).items_center().rounded(6).bg(index === this.branchAt ? t.selected : t.surface).hover(state => state.bg(t.hover)).cursor_pointer()
-        .on_click((_event, cx) => { this.branchAt = index; this.handle.focus(); cx.notify(); })
+        .on_click((_event, cx) => { this.branchAt = index; this.activeInput().focus(); cx.notify(); })
         .child(div().truncate().text_color(t.foreground).child(branch)),
     ));
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("branch-list").absolute().inset_0());
@@ -263,7 +250,7 @@ export default class WorktreeDashboard extends View {
     const t = theme();
     const content = this.mode === "list" ? this.renderList(t) : this.mode === "branches" ? this.renderBranches(t) : this.renderName(t);
     const hint = this.mode === "list" ? "/ search · Tab search/results · ↑↓ select · Enter switch · N new · R remove · Esc close" : this.mode === "branches" ? "Tab search/results · ↑↓ select branch · Enter continue · Esc back" : "Enter create · Esc back";
-    return v_flex().id("worktree-dashboard").track_focus(this.handle).on_key_down((event, cx) => this.key(event, cx)).size_full().p(14).gap(10).bg(t.popover).text_size(13)
+    return v_flex().id("worktree-dashboard").size_full().p(14).gap(10).bg(t.popover).text_size(13)
       .child(div().font_semibold().text_color(t.foreground).child(this.mode === "list" ? "Worktrees" : this.mode === "branches" ? "Choose a branch" : "Name worktree"))
       .child(content)
       .child(div().text_size(11).text_color(t.dim).child(hint));

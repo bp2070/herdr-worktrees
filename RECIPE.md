@@ -14,7 +14,7 @@ The new-worktree flow first shows a branch filter and a scrollable local-branch 
 
 ## How it behaves
 
-The first visible worktree is selected. `/` focuses filtering; `Tab` moves between the current input and results list; `↑` and `↓` wrap selection. `Enter` opens the selected worktree. With the list focused, `N` starts worktree creation in the selected row's repository and `R` opens safe removal for a non-main row that has a Herdr space. `Esc` backs out of creation or closes the window.
+The filter input always retains keyboard focus; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input. `Enter` opens it. `Alt+Shift+N` starts worktree creation in its repository and `Alt+Shift+R` opens safe removal for a non-main worktree that has a Herdr space. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
 
 Creating lists local branches that are not currently checked out in any worktree. Enter on a branch continues to naming. Enter on the name creates `~/.herdr/worktrees/<repo>/<folder-name>`, checks out the selected branch there, and starts a new Herdr space. The folder name is sanitized into one safe path component.
 
@@ -32,6 +32,6 @@ Only repositories with an existing Herdr space appear. The dashboard lists local
 
 - `npm test` passes.
 - `herdr-app check mods/worktree-dashboard` passes.
-- The dashboard opens with its filter focused and `Tab` switches input/list focus.
+- The dashboard opens with its filter focused; `↑` and `↓` change the highlighted result while that input remains focused.
 - The new-worktree screen shows a centered spinner while branches load, then focuses its branch filter.
 - Creating a checkout opens it in a new Herdr space.
