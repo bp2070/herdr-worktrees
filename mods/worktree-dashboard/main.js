@@ -2,7 +2,7 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { closeOverlay, exec, home, openOverlay, panes, props, run, spaces, theme } from "herdr";
 import {
-  eligibleBranches, filterBranches, filterGroups, groupKey, idOf, moveIndex, moveSelectedId,
+  eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
   repoName, selectedId, shouldFocusSearch, slug, spaceForWorktree, toggleInputFocus,
   visibleEntries, worktreeDestination, worktrees,
 } from "./model.js";
@@ -19,7 +19,7 @@ async function git(cwd, args, on) {
 
 export default class WorktreeDashboard extends View {
   init(_props, cx) {
-    this.loading = true; this.refreshing = false; this.error = ""; this.groups = []; this.selected = null; this.focusListWhenReady = true;
+    this.loading = true; this.refreshing = false; this.error = ""; this.groups = []; this.selected = null; this.focusRequests = new FocusRequests();
     this.mode = "list"; this.inputFocused = true; this.handle = cx.focus_handle();
     this.filter = ""; this.branchFilter = ""; this.branchAt = 0; this.branches = []; this.branchLoading = false; this.createGroup = null; this.branch = null;
     this.filterInput = this.makeInput("Filter worktrees by branch name…", (value, cx) => { this.filter = value; this.selectFirst(); cx.notify(); });
@@ -56,6 +56,14 @@ export default class WorktreeDashboard extends View {
     cx.notify();
   }
 
+  scheduleRequestedFocus(cx) {
+    const screen = this.focusRequests.take(this.mode);
+    if (!screen) return;
+    cx.timer.after(100, () => {
+      if (this.mode === screen) this.activeInput().focus();
+    });
+  }
+
   refresh(cx) {
     if (this.refreshing) return;
     this.refreshing = true; this.loading = this.groups.length === 0; cx.notify();
@@ -89,20 +97,14 @@ export default class WorktreeDashboard extends View {
       } catch (error) { this.error = String(error?.message ?? error); }
       finally {
         this.loading = false; this.refreshing = false; cx.notify();
-        if (this.focusListWhenReady && this.mode === "list") {
-          this.focusListWhenReady = false;
-          cx.timer.after(100, () => { if (this.mode === "list") this.filterInput.focus(); });
-        }
+        this.scheduleRequestedFocus(cx);
       }
     });
   }
 
   startCreate(group, cx) {
-    this.mode = "branches"; this.createGroup = group; this.branches = []; this.branchLoading = true; this.branchAt = 0; this.branchFilter = ""; this.branchInput.set_value(""); this.error = "";
-    // The branch filter is rendered only after this state change, so focus it
-    // on the next native frame rather than the outgoing results view.
+    this.mode = "branches"; this.focusRequests.request("branches"); this.createGroup = group; this.branches = []; this.branchLoading = true; this.branchAt = 0; this.branchFilter = ""; this.branchInput.set_value(""); this.error = "";
     cx.notify();
-    cx.timer.after(50, () => this.branchInput.focus());
     cx.spawn(async cx => {
       try {
         const result = await git(group.main, ["for-each-ref", "--format=%(refname:short)", "refs/heads"], group.machine);
@@ -115,9 +117,7 @@ export default class WorktreeDashboard extends View {
       finally {
         this.branchLoading = false;
         cx.notify();
-        // The branch input is absent during the centered loading screen; focus
-        // it only after the chooser itself has been rendered.
-        cx.timer.after(50, () => { if (this.mode === "branches") this.branchInput.focus(); });
+        this.scheduleRequestedFocus(cx);
       }
     });
   }
@@ -125,7 +125,7 @@ export default class WorktreeDashboard extends View {
   chooseBranch(cx) {
     const branch = this.shownBranches()[this.branchAt];
     if (!branch) return;
-    this.branch = branch; this.worktreeName = branch; this.mode = "name"; this.nameInput.set_value(branch); this.nameInput.focus(); cx.notify();
+    this.branch = branch; this.worktreeName = branch; this.mode = "name"; this.focusRequests.request("name"); this.nameInput.set_value(branch); cx.notify(); this.scheduleRequestedFocus(cx);
   }
 
   async machineHome(machine) {
@@ -148,7 +148,7 @@ export default class WorktreeDashboard extends View {
         const result = await git(group.main, ["worktree", "add", path, this.branch], group.machine);
         if (!result.ok) throw new Error(result.err || "git worktree add failed.");
         run("space.new", { folder: path, machine: group.machine });
-        this.mode = "list"; this.error = ""; this.focusListWhenReady = true; this.refresh(cx);
+        this.mode = "list"; this.error = ""; this.focusRequests.request("list"); this.refresh(cx);
       } catch (error) { this.error = String(error?.message ?? error); cx.notify(); }
     });
   }

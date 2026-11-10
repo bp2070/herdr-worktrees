@@ -84,3 +84,22 @@ export function worktreeDestination(userHome, repository, name) {
 
 export const toggleInputFocus = inputFocused => !inputFocused;
 export const shouldFocusSearch = (key, inputFocused, hasSearch) => key === "/" && !inputFocused && hasSearch;
+
+// Records a focus request until the corresponding screen has rendered. The
+// view consumes it after native layout; tests can inspect this state without a
+// GPUI window or OS-level focus API.
+export class FocusRequests {
+  constructor(initial = "list") {
+    this.target = initial;
+  }
+
+  request(screen) {
+    this.target = screen;
+  }
+
+  take(screen) {
+    if (this.target !== screen) return null;
+    this.target = null;
+    return screen;
+  }
+}

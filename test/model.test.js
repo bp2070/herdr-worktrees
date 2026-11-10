@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  eligibleBranches, filterBranches, filterGroups, groupKey, idOf, moveIndex, moveSelectedId,
+  eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
   normalizePath, pathContains, repoName, selectedId, shouldFocusSearch, slug,
   spaceForWorktree, toggleInputFocus, visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktree-dashboard/model.js";
@@ -132,4 +132,29 @@ test("focus helpers toggle input/list focus and reserve slash for searchable scr
   assert.equal(shouldFocusSearch("/", false, true), true);
   assert.equal(shouldFocusSearch("/", true, true), false);
   assert.equal(shouldFocusSearch("/", false, false), false);
+});
+
+test("focus request is held through the initial loading screen then consumed by the list", () => {
+  const focus = new FocusRequests();
+  assert.equal(focus.target, "list");
+  assert.equal(focus.take("branches"), null);
+  assert.equal(focus.target, "list");
+  assert.equal(focus.take("list"), "list");
+  assert.equal(focus.target, null);
+});
+
+test("branch screen focus request survives loading and cannot be consumed by the list", () => {
+  const focus = new FocusRequests("list");
+  focus.request("branches");
+  assert.equal(focus.take("list"), null);
+  assert.equal(focus.target, "branches");
+  assert.equal(focus.take("branches"), "branches");
+  assert.equal(focus.target, null);
+});
+
+test("returning to the list requests a new filter focus after worktree creation", () => {
+  const focus = new FocusRequests("name");
+  focus.request("list");
+  assert.equal(focus.take("list"), "list");
+  assert.equal(focus.take("list"), null);
 });
