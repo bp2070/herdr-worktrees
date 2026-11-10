@@ -1,5 +1,5 @@
 import { View, div, svg } from "gpui-kit";
-import { h_flex, v_flex, v_virtual_list, InputState, Input, Scrollbar, VirtualListScrollHandle } from "gpui-base";
+import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, spaces, theme } from "herdr";
 import {
   eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
@@ -19,8 +19,6 @@ async function git(cwd, args, on) {
 export default class WorktreeDashboard extends View {
   init(_props, cx) {
     this.loading = true; this.refreshing = false; this.error = ""; this.groups = []; this.selected = null; this.focusRequests = new FocusRequests();
-    this.worktreeScroll = VirtualListScrollHandle.new();
-    this.branchScroll = VirtualListScrollHandle.new();
     this.mode = "list";
     this.filter = ""; this.branchFilter = ""; this.branchAt = 0; this.branches = []; this.branchLoading = false; this.createGroup = null; this.branch = null;
     this.filterInput = this.makeInput("Filter worktrees by branch name…", (value, cx) => { this.filter = value; this.selectFirst(); cx.notify(); });
@@ -53,14 +51,8 @@ export default class WorktreeDashboard extends View {
   move(delta, cx) {
     const items = this.mode === "branches" ? this.shownBranches() : this.visibleEntries();
     if (!items.length) return;
-    if (this.mode === "branches") {
-      this.branchAt = moveIndex(this.branchAt, items.length, delta);
-      this.branchScroll.scroll_to_item(this.branchAt, "center");
-    } else {
-      this.selected = moveSelectedId(this.groups, this.filter, this.selected, delta);
-      const at = this.listItems().findIndex(item => item.kind === "worktree" && idOf(item.group, item.entry) === this.selected);
-      if (at >= 0) this.worktreeScroll.scroll_to_item(at, "center");
-    }
+    if (this.mode === "branches") this.branchAt = moveIndex(this.branchAt, items.length, delta);
+    else this.selected = moveSelectedId(this.groups, this.filter, this.selected, delta);
     this.activeInput().focus();
     cx.notify();
   }
@@ -219,46 +211,34 @@ export default class WorktreeDashboard extends View {
     return (binding ?? fallback).split("-").map(part => ({ alt: "Alt", ctrl: "Ctrl", shift: "Shift" }[part] ?? part.toUpperCase())).join("+");
   }
 
-  listItems() {
-    return this.visibleGroups().flatMap(group => [
-      { kind: "group", group },
-      ...(group.error ? [{ kind: "error", group }] : []),
-      ...group.entries.map((entry, entryIndex) => ({ kind: "worktree", group, entry, entryIndex })),
-    ]);
-  }
-
   renderList(t) {
-    const items = this.listItems();
-    const row = (item, index) => {
-      if (item.kind === "group") return v_flex().id(`group-${item.group.key}`).flex_none().h(48).px(4).justify_center().gap(1)
-        .child(h_flex().items_center().gap(8)
-          .child(div().flex_1().truncate().font_semibold().text_color(t.foreground).child(item.group.name))
-          .when(Boolean(item.group.machine), header => header.child(div().text_size(11).text_color(t.dim).child(item.group.machine))))
-        .child(div().truncate().text_size(11).text_color(t.dim).child(item.group.main));
-      if (item.kind === "error") return h_flex().id(`error-${item.group.key}`).flex_none().h(24).px(4).items_center().text_color(t.blocked).child(item.group.error);
-      return this.worktreeRow(item.entry, item.group, item.entryIndex, t).id(`worktree-list-${index}`);
-    };
-    const rows = v_virtual_list("worktree-dashboard-list", items.length, items.map(item => item.kind === "group" ? 48 : item.kind === "error" ? 24 : 38), item => {
-      const row = items[item];
-      return row.kind === "group" ? `group-${row.group.key}` : row.kind === "error" ? `error-${row.group.key}` : idOf(row.group, row.entry);
-    }, range => items.slice(range.start, range.end).map((item, index) => row(item, range.start + index))).size_full().track_scroll(this.worktreeScroll);
+    const groups = this.visibleGroups();
+    const rows = v_flex().id("worktree-dashboard-list").size_full().gap(14).overflow_y_scroll().children(groups.map(group =>
+      v_flex().gap(6)
+        .child(v_flex().gap(1)
+          .child(h_flex().items_center().gap(8)
+            .child(div().flex_1().truncate().font_semibold().text_color(t.foreground).child(group.name))
+            .when(Boolean(group.machine), header => header.child(div().text_size(11).text_color(t.dim).child(group.machine))))
+          .child(div().truncate().text_size(11).text_color(t.dim).child(group.main)))
+        .when(Boolean(group.error), groupEl => groupEl.child(div().text_color(t.blocked).child(group.error)))
+        .children(group.entries.map((entry, index) => this.worktreeRow(entry, group, index, t))),
+    ));
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("worktree-dashboard-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
       .when(this.loading, el => el.child(this.loadingView(t, "Loading worktrees…")))
       .when(!this.loading, el => el
         .child(this.inputField(this.filterInput, t))
         .when(Boolean(this.error), item => item.child(div().text_color(t.muted).child(this.error)))
-        .when(items.length > 0, item => item.child(list)));
+        .when(groups.length > 0, item => item.child(list)));
   }
 
   renderBranches(t) {
     const branches = this.shownBranches();
-    const rows = v_virtual_list("branch-list", branches.length, 34, index => branches[index], range => branches.slice(range.start, range.end).map((branch, index) => {
-      const at = range.start + index;
-      return h_flex().id(`branch-${at}`).flex_none().h(34).px(10).items_center().rounded(6).bg(at === this.branchAt ? t.selected : t.surface).hover(state => state.bg(t.hover)).cursor_pointer()
-        .on_click((_event, cx) => { this.branchAt = at; this.activeInput().focus(); cx.notify(); })
-        .child(div().truncate().text_color(t.foreground).child(branch));
-    })).size_full().track_scroll(this.branchScroll);
+    const rows = v_flex().id("branch-list").size_full().gap(2).overflow_y_scroll().children(branches.map((branch, index) =>
+      h_flex().id(`branch-${index}`).flex_none().h(34).px(10).items_center().rounded(6).bg(index === this.branchAt ? t.selected : t.surface).hover(state => state.bg(t.hover)).cursor_pointer()
+        .on_click((_event, cx) => { this.branchAt = index; this.activeInput().focus(); cx.notify(); })
+        .child(div().truncate().text_color(t.foreground).child(branch)),
+    ));
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("branch-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
       .when(this.branchLoading, el => el.child(this.loadingView(t, "Loading branches…")))
