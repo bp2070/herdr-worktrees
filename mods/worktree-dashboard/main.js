@@ -159,12 +159,21 @@ export default class WorktreeDashboard extends View {
   }
   close() { const overlay = props()?.overlay; if (overlay) closeOverlay(overlay); }
 
+  cycleFocus(cx) {
+    if (this.mode === "name") return;
+    this.inputFocused = toggleInputFocus(this.inputFocused);
+    if (this.inputFocused) this.activeInput().focus();
+    else this.handle.focus();
+    cx.stop_propagation();
+    cx.notify();
+  }
+
   key(event, cx) {
     if (event.key === "escape") {
       if (this.mode === "list") return this.close();
       this.mode = this.mode === "name" ? "branches" : "list"; this.activeInput().focus(); return cx.notify();
     }
-    if (event.key === "tab") { this.inputFocused = toggleInputFocus(this.inputFocused); if (this.inputFocused) this.activeInput().focus(); else this.handle.focus(); cx.stop_propagation(); return cx.notify(); }
+    if (event.key === "tab") return this.cycleFocus(cx);
     if (shouldFocusSearch(event.key, this.inputFocused, this.mode !== "name")) { this.inputFocused = true; this.activeInput().focus(); cx.stop_propagation(); return cx.notify(); }
     if (event.key === "down") return this.move(1, cx);
     if (event.key === "up") return this.move(-1, cx);
@@ -196,7 +205,9 @@ export default class WorktreeDashboard extends View {
   inputField(input, t) {
     return Input.new(input).h(34).px(10).items_center().rounded(6).border(1)
       .border_color(this.inputFocused ? t.accent : t.input).bg(t.background).text_color(t.foreground)
-      .on_key_down((event, cx) => this.key(event, cx));
+      // Inputs receive Tab before the root focus handle. Handle it here once,
+      // then stop propagation so it cannot toggle twice on the root.
+      .on_key_down((event, cx) => { if (event.key === "tab") this.cycleFocus(cx); });
   }
 
   renderList(t) {
