@@ -19,15 +19,14 @@ async function git(cwd, args, on) {
 
 export default class WorktreeDashboard extends View {
   init(_props, cx) {
-    this.loading = true; this.refreshing = false; this.error = ""; this.groups = []; this.selected = null;
+    this.loading = true; this.refreshing = false; this.error = ""; this.groups = []; this.selected = null; this.focusListWhenReady = true;
     this.mode = "list"; this.inputFocused = true; this.handle = cx.focus_handle();
     this.filter = ""; this.branchFilter = ""; this.branchAt = 0; this.branches = []; this.branchLoading = false; this.createGroup = null; this.branch = null;
     this.filterInput = this.makeInput("Filter worktrees by branch name…", (value, cx) => { this.filter = value; this.selectFirst(); cx.notify(); });
     this.branchInput = this.makeInput("Filter branches…", (value, cx) => { this.branchFilter = value; this.branchAt = 0; cx.notify(); });
     this.nameInput = this.makeInput("Worktree folder name", (value, cx) => { this.worktreeName = value; cx.notify(); });
-    // Focus the overlay's own input after its native window has been mounted.
-    // This also gives the new window keyboard ownership immediately on open.
-    cx.timer.after(50, () => { if (this.mode === "list") this.filterInput.focus(); });
+    // The input is absent during initial loading. refresh() focuses it only
+    // after the list screen is mounted inside the native overlay.
     cx.timer.every(15000, cx => this.refresh(cx));
     this.refresh(cx);
   }
@@ -88,7 +87,13 @@ export default class WorktreeDashboard extends View {
         this.error = this.groups.length ? "" : "Open a Git repository in a Herdr space to manage its worktrees.";
         this.ensureSelection();
       } catch (error) { this.error = String(error?.message ?? error); }
-      finally { this.loading = false; this.refreshing = false; cx.notify(); }
+      finally {
+        this.loading = false; this.refreshing = false; cx.notify();
+        if (this.focusListWhenReady && this.mode === "list") {
+          this.focusListWhenReady = false;
+          cx.timer.after(100, () => { if (this.mode === "list") this.filterInput.focus(); });
+        }
+      }
     });
   }
 
@@ -143,7 +148,7 @@ export default class WorktreeDashboard extends View {
         const result = await git(group.main, ["worktree", "add", path, this.branch], group.machine);
         if (!result.ok) throw new Error(result.err || "git worktree add failed.");
         run("space.new", { folder: path, machine: group.machine });
-        this.mode = "list"; this.error = ""; this.refresh(cx); this.filterInput.focus();
+        this.mode = "list"; this.error = ""; this.focusListWhenReady = true; this.refresh(cx);
       } catch (error) { this.error = String(error?.message ?? error); cx.notify(); }
     });
   }
