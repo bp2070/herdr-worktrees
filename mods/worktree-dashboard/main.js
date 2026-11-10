@@ -148,13 +148,17 @@ export default class WorktreeDashboard extends View {
         const path = worktreeDestination(userHome, group.name, name);
         const result = await git(group.main, ["worktree", "add", path, this.branch], group.machine);
         if (!result.ok) throw new Error(result.err || "git worktree add failed.");
+        this.close();
         run("space.new", { folder: path, machine: group.machine });
-        this.mode = "list"; this.error = ""; this.focusRequests.request("list"); this.refresh(cx);
       } catch (error) { this.error = String(error?.message ?? error); cx.notify(); }
     });
   }
 
-  open(entry, group) { if (entry.space) run("space.select", { id: entry.space.id }); else run("space.new", { folder: entry.path, machine: group.machine }); }
+  open(entry, group) {
+    this.close();
+    if (entry.space) run("space.select", { id: entry.space.id });
+    else run("space.new", { folder: entry.path, machine: group.machine });
+  }
   remove(entry) {
     if (entry.space && !entry.main) openOverlay({ mod: "worktree", kind: "dialog", width: 440, height: 260, props: { space: entry.space.id, action: "remove" } });
   }
