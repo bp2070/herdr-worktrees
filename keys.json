@@ -1,5 +1,6 @@
 {
   "mod:worktree-dashboard": {
+    "escape": "worktree-dashboard.escape",
     "alt-shift-n": "worktree-dashboard.new",
     "alt-shift-r": "worktree-dashboard.remove"
   }
