@@ -249,7 +249,7 @@ export default class WorktreeDashboard extends View {
   render() {
     const t = theme();
     const content = this.mode === "list" ? this.renderList(t) : this.mode === "branches" ? this.renderBranches(t) : this.renderName(t);
-    const hint = this.mode === "list" ? "/ search · Tab search/results · ↑↓ select · Enter switch · N new · R remove · Esc close" : this.mode === "branches" ? "Tab search/results · ↑↓ select branch · Enter continue · Esc back" : "Enter create · Esc back";
+    const hint = this.mode === "list" ? "↑↓ select · Enter open · Alt+Shift+N new · Alt+Shift+R remove · Esc close" : this.mode === "branches" ? "↑↓ select branch · Enter continue · Esc back" : "Enter create · Esc back";
     return v_flex().id("worktree-dashboard").size_full().p(14).gap(10).bg(t.popover).text_size(13)
       .child(div().font_semibold().text_color(t.foreground).child(this.mode === "list" ? "Worktrees" : this.mode === "branches" ? "Choose a branch" : "Name worktree"))
       .child(content)
