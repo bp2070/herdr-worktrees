@@ -35,8 +35,10 @@ The filter input retains keyboard focus. Use the mod-specific shortcuts in `keys
 
 - `↑` / `↓` changes the highlighted result while leaving the input focused.
 - `Enter` opens the highlighted worktree.
-- `Alt+Shift+N` begins the new-worktree flow.
-- `Alt+Shift+R` opens Herdr's built-in worktree removal dialog for a non-main highlighted worktree with a Herdr space.
+- The configured **new worktree** shortcut begins the new-worktree flow (default: `Alt+Shift+N`).
+- The configured **remove worktree** shortcut opens Herdr's built-in worktree removal dialog for a non-main highlighted worktree with a Herdr space (default: `Alt+Shift+R`).
+
+The bottom hint reads Herdr's live `mod:worktree-dashboard` key bindings, so it updates when either action's mapping changes.
 - `Esc` goes back or closes the dashboard.
 
 `Tab` is intentionally not mapped.

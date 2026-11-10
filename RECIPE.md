@@ -14,7 +14,7 @@ The new-worktree flow first shows a branch filter and a scrollable local-branch 
 
 ## How it behaves
 
-The filter input always retains keyboard focus; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input. `Enter` opens it. `Alt+Shift+N` starts worktree creation in its repository and `Alt+Shift+R` opens safe removal for a non-main worktree that has a Herdr space. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
+The filter input always retains keyboard focus; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input. `Enter` opens it. The configured new-worktree action (default `Alt+Shift+N`) starts creation in its repository, and the configured remove action (default `Alt+Shift+R`) opens safe removal for a non-main worktree that has a Herdr space. The bottom hint reads the live mod key bindings. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
 
 Creating lists local branches that are not currently checked out in any worktree. Enter on a branch continues to naming. Enter on the name creates `~/.herdr/worktrees/<repo>/<folder-name>`, checks out the selected branch there, and starts a new Herdr space. The folder name is sanitized into one safe path component.
 

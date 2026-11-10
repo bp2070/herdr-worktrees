@@ -1,6 +1,6 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
-import { closeOverlay, exec, home, nextCommand, openOverlay, panes, props, run, spaces, theme } from "herdr";
+import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, spaces, theme } from "herdr";
 import {
   eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
   repoName, selectedId, slug, spaceForWorktree, visibleEntries, worktreeDestination, worktrees,
@@ -36,6 +36,7 @@ export default class WorktreeDashboard extends View {
   makeInput(placeholder, change) {
     const input = InputState.new({ value: "", placeholder });
     input.on("change", (_event, cx) => change(input.value(), cx));
+    input.on("submit", (_event, cx) => this.command("enter", cx));
     return input;
   }
 
@@ -196,7 +197,18 @@ export default class WorktreeDashboard extends View {
 
   inputField(input, t) {
     return Input.new(input).h(34).px(10).items_center().rounded(6).border(1)
-      .border_color(t.accent).bg(t.background).text_color(t.foreground);
+      .border_color(t.accent).bg(t.background).text_color(t.foreground)
+      .on_key_down((event, cx) => {
+        if (["up", "down", "escape"].includes(event.key)) {
+          this.command(event.key, cx);
+          cx.stop_propagation();
+        }
+      });
+  }
+
+  shortcut(command, fallback) {
+    const binding = keys().find(key => key.section === "mod:worktree-dashboard" && key.action === `worktree-dashboard.${command}`)?.keys;
+    return (binding ?? fallback).split("-").map(part => ({ alt: "Alt", ctrl: "Ctrl", shift: "Shift" }[part] ?? part.toUpperCase())).join("+");
   }
 
   renderList(t) {
@@ -249,7 +261,7 @@ export default class WorktreeDashboard extends View {
   render() {
     const t = theme();
     const content = this.mode === "list" ? this.renderList(t) : this.mode === "branches" ? this.renderBranches(t) : this.renderName(t);
-    const hint = this.mode === "list" ? "↑↓ select · Enter open · Alt+Shift+N new · Alt+Shift+R remove · Esc close" : this.mode === "branches" ? "↑↓ select branch · Enter continue · Esc back" : "Enter create · Esc back";
+    const hint = this.mode === "list" ? `↑↓ select · Enter open · ${this.shortcut("new", "alt-shift-n")} new · ${this.shortcut("remove", "alt-shift-r")} remove · Esc close` : this.mode === "branches" ? "↑↓ select branch · Enter continue · Esc back" : "Enter create · Esc back";
     return v_flex().id("worktree-dashboard").size_full().p(14).gap(10).bg(t.popover).text_size(13)
       .child(div().font_semibold().text_color(t.foreground).child(this.mode === "list" ? "Worktrees" : this.mode === "branches" ? "Choose a branch" : "Name worktree"))
       .child(content)
