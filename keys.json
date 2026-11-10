@@ -1,4 +1,7 @@
 {
+  "global": {
+    "alt-shift-w": "mod.open:worktree-dashboard"
+  },
   "mod:worktree-dashboard": {
     "up": "worktree-dashboard.up",
     "down": "worktree-dashboard.down",

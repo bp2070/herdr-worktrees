@@ -4,6 +4,11 @@ import { readFile } from "node:fs/promises";
 
 const keys = JSON.parse(await readFile(new URL("../keys.json", import.meta.url), "utf8"));
 const bindings = keys["mod:worktree-dashboard"];
+const globalBindings = keys.global;
+
+test("default keyboard contract opens the dashboard globally", () => {
+  assert.equal(globalBindings?.["alt-shift-w"], "mod.open:worktree-dashboard");
+});
 
 test("default keyboard contract preserves input-safe navigation", () => {
   assert.ok(bindings, "keys.json must define the worktree-dashboard mod section");

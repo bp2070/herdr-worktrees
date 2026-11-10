@@ -31,6 +31,8 @@ Open or toggle the floating dashboard:
 herdr-app do mod.open --name worktree-dashboard
 ```
 
+Default global shortcut: `Alt+Shift+W`.
+
 The filter input retains keyboard focus. Use the mod-specific shortcuts in `keys.json`:
 
 - `↑` / `↓` changes the highlighted result while leaving the input focused. These have mod-specific mappings because Herdr's native input consumes arrow keys before the mod can observe them.
