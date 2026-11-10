@@ -1,6 +1,6 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
-import { closeOverlay, exec, home, openOverlay, panes, props, run, spaces, theme } from "herdr";
+import { closeOverlay, exec, home, nextCommand, openOverlay, panes, props, run, spaces, theme } from "herdr";
 import {
   eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
   repoName, selectedId, shouldFocusSearch, slug, spaceForWorktree, toggleInputFocus,
@@ -28,6 +28,11 @@ export default class WorktreeDashboard extends View {
     // The input is absent during initial loading. refresh() focuses it only
     // after the list screen is mounted inside the native overlay.
     cx.timer.every(15000, cx => this.refresh(cx));
+    cx.spawn(async cx => {
+      for (;;) {
+        if (await nextCommand() === "cycle_focus") this.cycleFocus(cx);
+      }
+    });
     this.refresh(cx);
   }
 
@@ -204,10 +209,7 @@ export default class WorktreeDashboard extends View {
 
   inputField(input, t) {
     return Input.new(input).h(34).px(10).items_center().rounded(6).border(1)
-      .border_color(this.inputFocused ? t.accent : t.input).bg(t.background).text_color(t.foreground)
-      // Inputs receive Tab before the root focus handle. Handle it here once,
-      // then stop propagation so it cannot toggle twice on the root.
-      .on_key_down((event, cx) => { if (event.key === "tab") this.cycleFocus(cx); });
+      .border_color(this.inputFocused ? t.accent : t.input).bg(t.background).text_color(t.foreground);
   }
 
   renderList(t) {
