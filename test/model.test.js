@@ -1,6 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { eligibleBranches, filterBranches, idOf, slug, worktrees } from "../mods/worktree-dashboard/model.js";
+import {
+  eligibleBranches, filterBranches, filterGroups, groupKey, idOf, moveIndex, moveSelectedId,
+  normalizePath, pathContains, repoName, selectedId, shouldFocusSearch, slug,
+  spaceForWorktree, toggleInputFocus, visibleEntries, worktreeDestination, worktrees,
+} from "../mods/worktree-dashboard/model.js";
+
+const group = (key, branches, error = "") => ({
+  key,
+  entries: branches.map((branch, index) => ({ path: `C:/worktrees/${key}/${branch}`, branch, main: index === 0 })),
+  error,
+});
 
 test("slug creates a safe one-directory worktree name", () => {
   assert.equal(slug("feature/login UI"), "feature-login-UI");
@@ -24,9 +34,10 @@ test("worktrees parses normal, detached, and prunable porcelain records", () => 
 });
 
 test("eligibleBranches excludes branches already checked out by another worktree", () => {
-  const branches = ["main", "feature/login", "fix/menu"];
-  const entries = [{ branch: "main" }, { branch: "fix/menu" }];
-  assert.deepEqual(eligibleBranches(branches, entries), ["feature/login"]);
+  assert.deepEqual(
+    eligibleBranches(["main", "feature/login", "fix/menu"], [{ branch: "main" }, { branch: "fix/menu" }]),
+    ["feature/login"],
+  );
 });
 
 test("filterBranches matches case-insensitively and ignores surrounding whitespace", () => {
@@ -35,7 +46,90 @@ test("filterBranches matches case-insensitively and ignores surrounding whitespa
   assert.deepEqual(filterBranches(branches, ""), branches);
 });
 
-test("idOf remains distinct for worktrees in the same repository", () => {
-  const group = { key: "local\u0000C:/src/app" };
-  assert.notEqual(idOf(group, { path: "C:/src/app" }), idOf(group, { path: "C:/worktrees/app/login" }));
+test("group and repository helpers preserve machine separation and repository names", () => {
+  assert.notEqual(groupKey(null, "C:/src/app"), groupKey("build-box", "C:/src/app"));
+  assert.equal(repoName("C:/src/app"), "app");
+  assert.equal(repoName("/home/me/repo/"), "repo");
+});
+
+test("filterGroups retains matching entries and groups with errors", () => {
+  const groups = [group("one", ["main", "feature/login"]), group("broken", [], "git failed")];
+  const filtered = filterGroups(groups, "login");
+  assert.deepEqual(filtered.map(item => [item.key, item.entries.map(entry => entry.branch)]), [["one", ["feature/login"]], ["broken", []]]);
+});
+
+test("visibleEntries flattens filtered groups in display order", () => {
+  const groups = [group("one", ["main", "feature/login"]), group("two", ["fix/menu"])];
+  assert.deepEqual(visibleEntries(groups, "").map(item => item.entry.branch), ["main", "feature/login", "fix/menu"]);
+});
+
+test("selectedId chooses the first visible worktree by default", () => {
+  const groups = [group("one", ["main", "feature/login"])];
+  assert.equal(selectedId(groups, "", null), idOf(groups[0], groups[0].entries[0]));
+});
+
+test("selectedId preserves a valid selection and resets an invalid one after filtering", () => {
+  const groups = [group("one", ["main", "feature/login"])];
+  const login = idOf(groups[0], groups[0].entries[1]);
+  assert.equal(selectedId(groups, "", login), login);
+  assert.equal(selectedId(groups, "main", login), idOf(groups[0], groups[0].entries[0]));
+});
+
+test("selectedId returns null when no worktree matches", () => {
+  assert.equal(selectedId([group("one", ["main"])], "missing", "anything"), null);
+});
+
+test("moveIndex wraps at both list ends and handles an absent selection", () => {
+  assert.equal(moveIndex(0, 3, -1), 2);
+  assert.equal(moveIndex(2, 3, 1), 0);
+  assert.equal(moveIndex(-1, 3, 1), 0);
+  assert.equal(moveIndex(-1, 3, -1), 2);
+  assert.equal(moveIndex(0, 0, 1), -1);
+});
+
+test("moveSelectedId navigates filtered worktrees and wraps", () => {
+  const groups = [group("one", ["main", "feature/login", "fix/menu"])];
+  const main = idOf(groups[0], groups[0].entries[0]);
+  const menu = idOf(groups[0], groups[0].entries[2]);
+  assert.equal(moveSelectedId(groups, "", main, -1), menu);
+  assert.equal(moveSelectedId(groups, "login", null, 1), idOf(groups[0], groups[0].entries[1]));
+});
+
+test("normalizes Windows paths and checks descendants without prefix false positives", () => {
+  assert.equal(normalizePath("C:\\repo\\sub"), "C:/repo/sub");
+  assert.equal(pathContains("C:\\repo\\sub", "C:/repo"), true);
+  assert.equal(pathContains("C:/repository", "C:/repo"), false);
+});
+
+test("spaceForWorktree assigns a space in a worktree subfolder", () => {
+  const spaces = [{ id: "space-1", machine: null, folder: "C:/worktrees/app/login/src" }];
+  const checkout = { path: "C:/worktrees/app/login" };
+  assert.equal(spaceForWorktree(spaces, new Map(), null, checkout, [checkout])?.id, "space-1");
+});
+
+test("spaceForWorktree assigns a nested checkout instead of its parent", () => {
+  const spaces = [{ id: "space-1", machine: null, folder: "C:/repo/submodule" }];
+  const parent = { path: "C:/repo" };
+  const nested = { path: "C:/repo/submodule" };
+  assert.equal(spaceForWorktree(spaces, new Map(), null, parent, [parent, nested]), undefined);
+  assert.equal(spaceForWorktree(spaces, new Map(), null, nested, [parent, nested])?.id, "space-1");
+});
+
+test("spaceForWorktree does not cross machine boundaries", () => {
+  const spaces = [{ id: "space-1", machine: "remote", folder: "/work/app" }];
+  const checkout = { path: "/work/app" };
+  assert.equal(spaceForWorktree(spaces, new Map(), null, checkout, [checkout]), undefined);
+});
+
+test("worktreeDestination creates a normalized safe destination and rejects blank names", () => {
+  assert.equal(worktreeDestination("C:\\Users\\me", "app", "feature/login"), "C:/Users/me/.herdr/worktrees/app/feature-login");
+  assert.equal(worktreeDestination("/home/me", "app", "   "), null);
+});
+
+test("focus helpers toggle input/list focus and reserve slash for searchable screens", () => {
+  assert.equal(toggleInputFocus(true), false);
+  assert.equal(toggleInputFocus(false), true);
+  assert.equal(shouldFocusSearch("/", false, true), true);
+  assert.equal(shouldFocusSearch("/", true, true), false);
+  assert.equal(shouldFocusSearch("/", false, false), false);
 });

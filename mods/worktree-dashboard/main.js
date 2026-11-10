@@ -1,7 +1,11 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { closeOverlay, exec, home, openOverlay, panes, props, run, spaces, theme } from "herdr";
-import { eligibleBranches, filterBranches, idOf, slug, worktrees } from "./model.js";
+import {
+  eligibleBranches, filterBranches, filterGroups, groupKey, idOf, moveIndex, moveSelectedId,
+  repoName, selectedId, shouldFocusSearch, slug, spaceForWorktree, toggleInputFocus,
+  visibleEntries, worktreeDestination, worktrees,
+} from "./model.js";
 
 function folderOf(space, paneList = panes()) {
   const tabs = new Set((space.tabs ?? []).map(tab => tab.id));
@@ -37,25 +41,18 @@ export default class WorktreeDashboard extends View {
   }
 
   activeInput() { return this.mode === "list" ? this.filterInput : this.mode === "branches" ? this.branchInput : this.nameInput; }
-  visibleGroups() {
-    const filter = this.filter.trim().toLowerCase();
-    return this.groups.map(group => ({ ...group, entries: group.entries.filter(entry => !filter || entry.branch.toLowerCase().includes(filter)) })).filter(group => group.entries.length || group.error);
-  }
-  visibleEntries() { return this.visibleGroups().flatMap(group => group.entries.map(entry => ({ group, entry }))); }
-  selectFirst() { const first = this.visibleEntries()[0]; this.selected = first ? idOf(first.group, first.entry) : null; }
-  ensureSelection() { if (!this.visibleEntries().some(({ group, entry }) => idOf(group, entry) === this.selected)) this.selectFirst(); }
+  visibleGroups() { return filterGroups(this.groups, this.filter); }
+  visibleEntries() { return visibleEntries(this.groups, this.filter); }
+  selectFirst() { this.selected = selectedId(this.groups, this.filter, null); }
+  ensureSelection() { this.selected = selectedId(this.groups, this.filter, this.selected); }
   selectedEntry() { return this.visibleEntries().find(({ group, entry }) => idOf(group, entry) === this.selected) ?? null; }
   shownBranches() { return filterBranches(this.branches, this.branchFilter); }
 
   move(delta, cx) {
     const items = this.mode === "branches" ? this.shownBranches() : this.visibleEntries();
     if (!items.length) return;
-    if (this.mode === "branches") this.branchAt = (this.branchAt + delta + items.length) % items.length;
-    else {
-      let at = items.findIndex(({ group, entry }) => idOf(group, entry) === this.selected);
-      at = (at + delta + items.length) % items.length;
-      this.selected = idOf(items[at].group, items[at].entry);
-    }
+    if (this.mode === "branches") this.branchAt = moveIndex(this.branchAt, items.length, delta);
+    else this.selected = moveSelectedId(this.groups, this.filter, this.selected, delta);
     this.handle.focus();
     cx.notify();
   }
@@ -65,15 +62,17 @@ export default class WorktreeDashboard extends View {
     this.refreshing = true; this.loading = this.groups.length === 0; cx.notify();
     cx.spawn(async cx => {
       try {
-        const paneList = panes(); const spaceList = spaces(); const found = new Map();
+        const paneList = panes(); const spaceList = spaces();
+        const paneFolders = new Map(spaceList.map(space => [space.id, folderOf(space, paneList)]));
+        const found = new Map();
         for (const space of spaceList) {
           const folder = folderOf(space, paneList); if (!folder) continue;
           const machine = space.machine ?? null;
           const [top, common] = await Promise.all([git(folder, ["rev-parse", "--show-toplevel"], machine), git(folder, ["rev-parse", "--path-format=absolute", "--git-common-dir"], machine)]);
           if (!top.ok || !common.ok) continue;
           const main = common.out.endsWith("/.git") ? common.out.slice(0, -5) : common.out;
-          const key = `${machine ?? ""}\u0000${main}`;
-          if (!found.has(key)) found.set(key, { key, machine, main, name: main.split(/[\\/]/).filter(Boolean).pop() ?? "repository", folder: top.out });
+          const key = groupKey(machine, main);
+          if (!found.has(key)) found.set(key, { key, machine, main, name: repoName(main), folder: top.out });
         }
         this.groups = await Promise.all([...found.values()].map(async group => {
           const list = await git(group.main, ["worktree", "list", "--porcelain"], group.machine);
@@ -81,11 +80,7 @@ export default class WorktreeDashboard extends View {
           const checkoutList = worktrees(list.out);
           const entries = await Promise.all(checkoutList.map(async entry => {
             const status = await git(entry.path, ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain"], group.machine);
-            const path = entry.path.replace(/\\/g, "/");
-            const space = spaceList.find(candidate => {
-              const at = folderOf(candidate, paneList)?.replace(/\\/g, "/");
-              return (candidate.machine ?? null) === group.machine && at && (at === path || at.startsWith(`${path}/`)) && !checkoutList.some(other => other.path !== entry.path && other.path.length > entry.path.length && (at === other.path || at.startsWith(`${other.path}/`)));
-            });
+            const space = spaceForWorktree(spaceList, paneFolders, group.machine, entry, checkoutList);
             return { ...entry, dirty: status.ok ? Boolean(status.out) : null, space };
           }));
           return { ...group, entries, error: "" };
@@ -144,7 +139,7 @@ export default class WorktreeDashboard extends View {
     cx.spawn(async cx => {
       try {
         const userHome = await this.machineHome(group.machine);
-        const path = `${userHome}/.herdr/worktrees/${group.name}/${slug(name)}`;
+        const path = worktreeDestination(userHome, group.name, name);
         const result = await git(group.main, ["worktree", "add", path, this.branch], group.machine);
         if (!result.ok) throw new Error(result.err || "git worktree add failed.");
         run("space.new", { folder: path, machine: group.machine });
@@ -164,8 +159,8 @@ export default class WorktreeDashboard extends View {
       if (this.mode === "list") return this.close();
       this.mode = this.mode === "name" ? "branches" : "list"; this.activeInput().focus(); return cx.notify();
     }
-    if (event.key === "tab") { this.inputFocused = !this.inputFocused; if (this.inputFocused) this.activeInput().focus(); else this.handle.focus(); cx.stop_propagation(); return cx.notify(); }
-    if (event.key === "/" && !this.inputFocused && this.mode !== "name") { this.inputFocused = true; this.activeInput().focus(); cx.stop_propagation(); return cx.notify(); }
+    if (event.key === "tab") { this.inputFocused = toggleInputFocus(this.inputFocused); if (this.inputFocused) this.activeInput().focus(); else this.handle.focus(); cx.stop_propagation(); return cx.notify(); }
+    if (shouldFocusSearch(event.key, this.inputFocused, this.mode !== "name")) { this.inputFocused = true; this.activeInput().focus(); cx.stop_propagation(); return cx.notify(); }
     if (event.key === "down") return this.move(1, cx);
     if (event.key === "up") return this.move(-1, cx);
     if (event.key === "enter") {
