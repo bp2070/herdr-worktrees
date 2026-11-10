@@ -1,0 +1,5 @@
+node_modules/
+coverage/
+herdr-shot.png
+mods/worktree-dashboard/gpui-kit.d.ts
+mods/worktree-dashboard/jsconfig.json
