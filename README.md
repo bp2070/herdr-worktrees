@@ -33,7 +33,7 @@ herdr-app do mod.open --name worktree-dashboard
 
 The filter input retains keyboard focus. Use the mod-specific shortcuts in `keys.json`:
 
-- `↑` / `↓` changes the highlighted result while leaving the input focused.
+- `↑` / `↓` changes the highlighted result while leaving the input focused. These have mod-specific mappings because Herdr's native input consumes arrow keys before the mod can observe them.
 - `Enter` opens the highlighted worktree.
 - The configured **new worktree** shortcut begins the new-worktree flow (default: `Alt+Shift+N`).
 - The configured **remove worktree** shortcut opens Herdr's built-in worktree removal dialog for a non-main highlighted worktree with a Herdr space (default: `Alt+Shift+R`).
