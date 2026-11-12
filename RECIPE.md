@@ -1,8 +1,8 @@
-# Worktree Dashboard
+# Herdr Worktrees
 
 A floating window for navigating Git worktrees already represented by Herdr spaces. It groups checkouts under each repository's main folder, lets the person filter and select a worktree with the keyboard, and creates a new checkout from an eligible local branch. The window follows the active Herdr theme and uses a centered spinner while Git data is loading.
 
-![Worktree Dashboard](preview.png)
+![Herdr Worktrees](preview.png)
 
 ## What you see
 
@@ -20,18 +20,18 @@ Creating lists local branches that are not currently checked out in any worktree
 
 ## Built from
 
-`mods/worktree-dashboard/mod.json` registers a `place: none` mod with a 680×540 floating window. `main.js` is a GPUI `View`; it reads spaces and panes, runs Git with `exec`, opens spaces with `space.select`/`space.new`, and opens the shipped `worktree` removal dialog with `openOverlay`. It uses `spinner.svg` with native `.spin(900)`.
+`mods/worktrees/mod.json` registers a `place: none` mod with a 680×540 floating window. `main.js` is a GPUI `View`; it reads spaces and panes, runs Git with `exec`, opens spaces with `space.select`/`space.new`, and opens the shipped `worktree` removal dialog with `openOverlay`. It uses `spinner.svg` with native `.spin(900)`.
 
 `model.js` contains pure helpers for parsing `git worktree list --porcelain`, branch eligibility/filtering, IDs, and safe folder slugs. Node's built-in test runner tests those helpers in `test/model.test.js`.
 
 ## Watch out
 
-Only repositories with an existing Herdr space appear. The dashboard lists local branches only and intentionally omits any branch already checked out by a worktree. Removal relies on Herdr's shipped `worktree` mod. `herdr-app check` validates initial loading and eager UI construction, not keyboard focus, async Git calls, or live layout behavior.
+Only repositories with an existing Herdr space appear. The Worktrees window lists local branches only and intentionally omits any branch already checked out by a worktree. Removal relies on Herdr's shipped `worktree` mod. `herdr-app check` validates initial loading and eager UI construction, not keyboard focus, async Git calls, or live layout behavior.
 
 ## Done when
 
 - `npm test` passes.
-- `herdr-app check mods/worktree-dashboard` passes.
-- The dashboard opens with its filter focused; `↑` and `↓` change the highlighted result while that input remains focused.
+- `herdr-app check mods/worktrees` passes.
+- The Worktrees window opens with its filter focused; `↑` and `↓` change the highlighted result while that input remains focused.
 - The new-worktree screen shows a centered spinner while branches load, then focuses its branch filter.
 - Creating a checkout opens it in a new Herdr space.

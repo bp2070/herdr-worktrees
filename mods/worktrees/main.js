@@ -16,7 +16,7 @@ async function git(cwd, args, on) {
   return { ok: result.code === 0, out: (result.stdout ?? "").trim(), err: (result.stderr ?? result.stdout ?? "").trim() };
 }
 
-export default class WorktreeDashboard extends View {
+export default class Worktrees extends View {
   init(_props, cx) {
     this.loading = true; this.refreshing = false; this.error = ""; this.groups = []; this.selected = null; this.focusRequests = new FocusRequests();
     this.mode = "list";
@@ -195,7 +195,7 @@ export default class WorktreeDashboard extends View {
 
   loadingView(t, label) {
     return v_flex().flex_1().items_center().justify_center().gap(10).text_color(t.muted)
-      .child(svg("mods/worktree-dashboard/spinner.svg").size(22).spin(900))
+      .child(svg("mods/worktrees/spinner.svg").size(22).spin(900))
       .child(label);
   }
 
@@ -211,13 +211,13 @@ export default class WorktreeDashboard extends View {
   }
 
   shortcut(command, fallback) {
-    const binding = keys().find(key => key.section === "mod:worktree-dashboard" && key.action === `worktree-dashboard.${command}`)?.keys;
+    const binding = keys().find(key => key.section === "mod:worktrees" && key.action === `worktrees.${command}`)?.keys;
     return (binding ?? fallback).split("-").map(part => ({ alt: "Alt", ctrl: "Ctrl", shift: "Shift" }[part] ?? part.toUpperCase())).join("+");
   }
 
   renderList(t) {
     const groups = this.visibleGroups();
-    const rows = v_flex().id("worktree-dashboard-list").size_full().gap(14).overflow_y_scroll().children(groups.map(group =>
+    const rows = v_flex().id("worktrees-list").size_full().gap(14).overflow_y_scroll().children(groups.map(group =>
       v_flex().gap(6)
         .child(v_flex().gap(1)
           .child(h_flex().items_center().gap(8)
@@ -227,7 +227,7 @@ export default class WorktreeDashboard extends View {
         .when(Boolean(group.error), groupEl => groupEl.child(div().text_color(t.blocked).child(group.error)))
         .children(group.entries.map((entry, index) => this.worktreeRow(entry, group, index, t))),
     ));
-    const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("worktree-dashboard-list").absolute().inset_0());
+    const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("worktrees-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
       .when(this.loading, el => el.child(this.loadingView(t, "Loading worktrees…")))
       .when(!this.loading, el => el
@@ -266,7 +266,7 @@ export default class WorktreeDashboard extends View {
     const t = theme();
     const content = this.mode === "list" ? this.renderList(t) : this.mode === "branches" ? this.renderBranches(t) : this.renderName(t);
     const hint = this.mode === "list" ? `↑↓ select · Enter open · ${this.shortcut("new", "alt-shift-n")} new · ${this.shortcut("remove", "alt-shift-r")} remove · Esc close` : this.mode === "branches" ? "↑↓ select branch · Enter continue · Esc back" : "Enter create · Esc back";
-    return v_flex().id("worktree-dashboard").size_full().p(14).gap(10).bg(t.popover).text_size(13)
+    return v_flex().id("worktrees").size_full().p(14).gap(10).bg(t.popover).text_size(13)
       .child(div().font_semibold().text_color(t.foreground).child(this.mode === "list" ? "Worktrees" : this.mode === "branches" ? "Choose a branch" : "Name worktree"))
       .child(content)
       .child(div().text_size(11).text_color(t.dim).child(hint));

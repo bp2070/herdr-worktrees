@@ -1,11 +1,11 @@
 {
-  "name": "herdr-worktree-dashboard",
+  "name": "herdr-worktrees",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check": "herdr-app check mods/worktree-dashboard",
+    "check": "herdr-app check mods/worktrees",
     "validate": "npm run test && npm run check"
   }
 }

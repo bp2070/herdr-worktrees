@@ -1,12 +1,12 @@
 {
   "global": {
-    "alt-shift-w": "mod.open:worktree-dashboard"
+    "alt-shift-w": "mod.open:worktrees"
   },
-  "mod:worktree-dashboard": {
-    "up": "worktree-dashboard.up",
-    "down": "worktree-dashboard.down",
-    "escape": "worktree-dashboard.escape",
-    "alt-shift-n": "worktree-dashboard.new",
-    "alt-shift-r": "worktree-dashboard.remove"
+  "mod:worktrees": {
+    "up": "worktrees.up",
+    "down": "worktrees.down",
+    "escape": "worktrees.escape",
+    "alt-shift-n": "worktrees.new",
+    "alt-shift-r": "worktrees.remove"
   }
 }

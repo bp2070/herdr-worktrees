@@ -4,7 +4,7 @@ import {
   eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
   normalizePath, pathContains, repoName, selectedId, slug, spaceForWorktree,
   visibleEntries, worktreeDestination, worktrees,
-} from "../mods/worktree-dashboard/model.js";
+} from "../mods/worktrees/model.js";
 
 const group = (key, branches, error = "") => ({
   key,
