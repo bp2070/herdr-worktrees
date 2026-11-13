@@ -206,22 +206,29 @@ export default class Worktrees extends View {
     return div().flex_none().h(18).px(6).flex().items_center().rounded(5).bg(`${color}26`).text_size(10.5).font_semibold().text_color(color).child(label);
   }
 
-  worktreeRow(entry, group, index, t) {
+  worktreeRow(entry, group, index, count, t) {
     const selected = this.selected === idOf(group, entry);
     const active = Boolean(entry.space?.active);
     const stateColor = entry.dirty === null ? t.dim : entry.dirty ? t.blocked : t.done;
     const status = entry.dirty === null ? "Unknown" : entry.dirty ? "Changes" : "Clean";
     const folderName = worktreePathName(entry.path);
-    return h_flex().id(`worktree-${group.key}-${index}`).flex_none().h(34).px(10).gap(9).items_center().rounded(7).cursor_pointer().bg(selected ? t.selected : t.surface).hover(state => state.bg(t.hover))
+    // Extend rails two pixels past adjoining rows so logical-pixel rounding
+    // cannot leave seams, while retaining a clear gap beneath the repo header.
+    const connector = div().relative().flex_none().w(16).h_full()
+      .child(div().absolute().left(5).top(index === 0 ? 1 : -2).bottom(index === count - 1 ? 17 : -2).w(1).bg(`${t.dim}88`))
+      .child(div().absolute().left(5).top(17).w(11).h(1).bg(`${t.dim}88`));
+    return h_flex().id(`worktree-${group.key}-${index}`).flex_none().h(34).px(10).gap(4).items_center().cursor_pointer()
       .on_click((_event, cx) => { this.selected = idOf(group, entry); this.activeInput().focus(); cx.notify(); })
-      .child(h_flex().flex_1().min_w(0).gap(6).items_center()
-        .child(div().min_w(0).truncate().font_semibold().text_color(t.foreground).child(folderName))
-        .child(div().flex_none().truncate().text_size(11).text_color(t.dim).child(`[${entry.branch}]`))
-        .when(entry.main, el => el.child(div().flex_none().text_size(10.5).text_color(t.dim).child("main"))))
-      .child(h_flex().flex_none().gap(4).items_center()
-        .when(active, el => el.child(this.badge("Current", t.accent)))
-        .when(Boolean(entry.space) && !active, el => el.child(this.badge("Open", t.accent)))
-        .child(this.badge(status, stateColor)));
+      .child(connector)
+      .child(h_flex().flex_1().min_w(0).h_full().px(6).gap(9).items_center().rounded(7).bg(selected ? t.selected : t.surface).hover(state => state.bg(t.hover))
+        .child(h_flex().flex_1().min_w(0).gap(6).items_center()
+          .child(div().min_w(0).truncate().font_semibold().text_color(t.foreground).child(folderName))
+          .child(div().flex_none().truncate().text_size(11).text_color(t.dim).child(`[${entry.branch}]`))
+          .when(entry.main, el => el.child(div().flex_none().text_size(10.5).text_color(t.dim).child("main"))))
+        .child(h_flex().flex_none().gap(4).items_center()
+          .when(active, el => el.child(this.badge("Current", t.accent)))
+          .when(Boolean(entry.space) && !active, el => el.child(this.badge("Open", t.accent)))
+          .child(this.badge(status, stateColor))));
   }
 
   loadingView(t, label) {
@@ -261,7 +268,7 @@ export default class Worktrees extends View {
             .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(group.main))
             .child(div().flex_none().text_size(11).text_color(t.muted).child(summaryText))))
         .when(Boolean(group.error), groupEl => groupEl.child(div().text_color(t.blocked).child(group.error)))
-        .children(group.entries.map((entry, index) => this.worktreeRow(entry, group, index, t)));
+        .children(group.entries.map((entry, index) => this.worktreeRow(entry, group, index, group.entries.length, t)));
     }));
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("worktrees-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
