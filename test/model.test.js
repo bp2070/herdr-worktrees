@@ -85,7 +85,9 @@ test("groupSummary counts visible worktrees, open spaces, and changed worktrees"
 
 test("listWindowHeight fits visible entries while respecting its bounds", () => {
   const groups = [group("one", ["main", "feature/login"]), group("two", ["fix/menu"])];
-  assert.equal(listWindowHeight(groups, "", 100, 1_000), 125 + 3 * 34 + 1 + 2 * 39 + 10);
+  assert.equal(listWindowHeight(groups, "", 100, 1_000), 149 + 3 * 34 + 1 + 2 * 39 + 10);
+  assert.equal(listWindowHeight([], ""), 300);
+  assert.equal(listWindowHeight([group("many", Array.from({ length: 30 }, (_, index) => `branch-${index}`))], ""), 720);
   assert.equal(listWindowHeight(groups, "login", 260, 760), 260);
   assert.equal(listWindowHeight(groups, "", 100, 200), 200);
 });

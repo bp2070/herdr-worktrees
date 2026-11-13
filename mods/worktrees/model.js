@@ -40,11 +40,13 @@ export function groupSummary(entries) {
 
 // The content-height budget accounts for the fixed window chrome, visible
 // repository headers, compact worktree rows, and gaps between groups.
-export function listWindowHeight(groups, filter, minimum = 260, maximum = 760) {
+export function listWindowHeight(groups, filter, minimum = 300, maximum = 720) {
   const shown = filterGroups(groups, filter);
   const entries = shown.reduce((count, group) => count + group.entries.length, 0);
   const entryGaps = shown.reduce((count, group) => count + Math.max(0, group.entries.length - 1), 0);
-  const desired = 125 + entries * 34 + entryGaps + shown.length * 39 + Math.max(0, shown.length - 1) * 10;
+  // Reserve 24px of layout headroom for native text metrics and the overlay
+  // frame so the final row never touches the scroll viewport's lower edge.
+  const desired = 149 + entries * 34 + entryGaps + shown.length * 39 + Math.max(0, shown.length - 1) * 10;
   return Math.min(maximum, Math.max(minimum, desired));
 }
 

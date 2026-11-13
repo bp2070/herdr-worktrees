@@ -64,8 +64,8 @@ export default class Worktrees extends View {
   shownBranches() { return filterBranches(this.branches, this.branchFilter); }
   windowHeight() {
     if (this.mode === "list") return listWindowHeight(this.groups, this.filter);
-    if (this.mode === "branches") return Math.min(760, Math.max(260, 130 + this.shownBranches().length * 34));
-    return 260;
+    if (this.mode === "branches") return Math.min(720, Math.max(300, 130 + this.shownBranches().length * 34));
+    return 300;
   }
 
   move(delta, cx) {
@@ -268,7 +268,7 @@ export default class Worktrees extends View {
 
   renderList(t) {
     const groups = this.visibleGroups();
-    const rows = v_flex().id("worktrees-list").size_full().gap(10).overflow_y_scroll().children(groups.map(group => {
+    const rows = v_flex().id("worktrees-list").size_full().gap(10).pb(5).overflow_y_scroll().children(groups.map(group => {
       const summary = groupSummary(group.entries);
       const summaryText = `${summary.total} ${summary.total === 1 ? "worktree" : "worktrees"} · ${summary.open} open${summary.changed ? ` · ${summary.changed} changes` : ""}`;
       return v_flex().gap(4)
@@ -319,9 +319,10 @@ export default class Worktrees extends View {
 
   render() {
     const t = theme();
+    const targetHeight = this.windowHeight();
     const content = this.mode === "list" ? this.renderList(t) : this.mode === "branches" ? this.renderBranches(t) : this.renderName(t);
     const hint = this.mode === "list" ? `↑↓ select · Enter open · ${this.shortcut("new", "alt-shift-n")} new · ${this.shortcut("remove", "alt-shift-r")} remove · Esc close` : this.mode === "branches" ? "↑↓ select branch · Enter continue · Esc back" : "Enter create · Esc back";
-    return v_flex().id("worktrees").w_full().h(this.windowHeight()).p(14).gap(10).bg(t.popover).text_size(13)
+    return v_flex().id("worktrees").w_full().h(targetHeight).p(14).gap(10).bg(t.popover).text_size(13)
       .child(div().font_semibold().text_color(t.foreground).child(this.mode === "list" ? "Worktrees" : this.mode === "branches" ? "Choose a branch" : "Name worktree"))
       .child(content)
       .child(div().text_size(11).text_color(t.dim).child(hint));
