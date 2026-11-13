@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
+  cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
   normalizePath, pathContains, repoName, selectedId, slug, spaceForWorktree,
   visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktrees/model.js";
@@ -15,6 +15,18 @@ const group = (key, branches, error = "") => ({
 test("commandName accepts Herdr's qualified mod actions", () => {
   assert.equal(commandName("worktrees.up"), "up");
   assert.equal(commandName("new"), "new");
+});
+
+test("cachedGroups returns only a recent well-formed cache", () => {
+  const groups = [{ key: "local\u0000C:/src/app", entries: [] }];
+  assert.deepEqual(cachedGroups({ savedAt: 1_000, groups }, 1_500, 1_000), groups);
+  assert.equal(cachedGroups({ savedAt: 1_000, groups }, 2_001, 1_000), null);
+  assert.equal(cachedGroups({ savedAt: "now", groups }, 1_500, 1_000), null);
+});
+
+test("cacheSnapshot excludes live Herdr space data", () => {
+  const snapshot = cacheSnapshot([{ key: "repo", machine: null, main: "C:/repo", name: "repo", folder: "C:/repo", error: "", entries: [{ path: "C:/repo", branch: "main", main: true, dirty: false, space: { id: "space-1" } }] }]);
+  assert.deepEqual(snapshot, [{ key: "repo", machine: null, main: "C:/repo", name: "repo", folder: "C:/repo", error: "", entries: [{ path: "C:/repo", branch: "main", main: true, dirty: false }] }]);
 });
 
 test("slug creates a safe one-directory worktree name", () => {

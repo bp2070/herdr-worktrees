@@ -1,14 +1,25 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
-import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, spaces, theme } from "herdr";
+import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, setShared, shared, spaces, theme } from "herdr";
 import {
-  commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
+  cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
   repoName, selectedId, slug, spaceForWorktree, visibleEntries, worktreeDestination, worktrees,
 } from "./model.js";
+
+const CACHE_KEY = "worktrees.cache.v1";
+const CACHE_MAX_AGE = 120_000;
 
 function folderOf(space, paneList = panes()) {
   const tabs = new Set((space.tabs ?? []).map(tab => tab.id));
   return paneList.find(pane => tabs.has(pane.tab) && pane.cwd)?.cwd ?? space.folder ?? null;
+}
+
+function withCurrentSpaces(groups, spaceList = spaces(), paneList = panes()) {
+  const paneFolders = new Map(spaceList.map(space => [space.id, folderOf(space, paneList)]));
+  return groups.map(group => {
+    const checkouts = group.entries ?? [];
+    return { ...group, entries: checkouts.map(entry => ({ ...entry, space: spaceForWorktree(spaceList, paneFolders, group.machine, entry, checkouts) })) };
+  });
 }
 
 async function git(cwd, args, on) {
@@ -21,6 +32,12 @@ export default class Worktrees extends View {
     this.loading = true; this.refreshing = false; this.error = ""; this.groups = []; this.selected = null; this.focusRequests = new FocusRequests();
     this.mode = "list";
     this.filter = ""; this.branchFilter = ""; this.branchAt = 0; this.branches = []; this.branchLoading = false; this.createGroup = null; this.branch = null;
+    const cached = cachedGroups(shared(CACHE_KEY), Date.now(), CACHE_MAX_AGE);
+    if (cached) {
+      this.groups = withCurrentSpaces(cached);
+      this.loading = false;
+      this.ensureSelection();
+    }
     this.filterInput = this.makeInput("Filter worktrees by branch name…", (value, cx) => { this.filter = value; this.selectFirst(); cx.notify(); });
     this.branchInput = this.makeInput("Filter branches…", (value, cx) => { this.branchFilter = value; this.branchAt = 0; cx.notify(); });
     this.nameInput = this.makeInput("Worktree folder name", (value, cx) => { this.worktreeName = value; cx.notify(); });
@@ -95,6 +112,7 @@ export default class Worktrees extends View {
         }));
         this.error = this.groups.length ? "" : "Open a Git repository in a Herdr space to manage its worktrees.";
         this.ensureSelection();
+        setShared(CACHE_KEY, { savedAt: Date.now(), groups: cacheSnapshot(this.groups) });
       } catch (error) { this.error = String(error?.message ?? error); }
       finally {
         this.loading = false; this.refreshing = false; cx.notify();
@@ -148,6 +166,7 @@ export default class Worktrees extends View {
         const path = worktreeDestination(userHome, group.name, name);
         const result = await git(group.main, ["worktree", "add", path, this.branch], group.machine);
         if (!result.ok) throw new Error(result.err || "git worktree add failed.");
+        setShared(CACHE_KEY, null);
         this.close();
         run("space.new", { folder: path, machine: group.machine });
       } catch (error) { this.error = String(error?.message ?? error); cx.notify(); }
@@ -160,7 +179,10 @@ export default class Worktrees extends View {
     else run("space.new", { folder: entry.path, machine: group.machine });
   }
   remove(entry) {
-    if (entry.space && !entry.main) openOverlay({ mod: "worktree", kind: "dialog", width: 440, height: 260, props: { space: entry.space.id, action: "remove" } });
+    if (entry.space && !entry.main) {
+      setShared(CACHE_KEY, null);
+      openOverlay({ mod: "worktree", kind: "dialog", width: 440, height: 260, props: { space: entry.space.id, action: "remove" } });
+    }
   }
   close() { const overlay = props()?.overlay; if (overlay) closeOverlay(overlay); }
 

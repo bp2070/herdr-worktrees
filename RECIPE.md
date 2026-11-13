@@ -6,7 +6,7 @@ A floating window for navigating Git worktrees already represented by Herdr spac
 
 ## What you see
 
-The window has a title, then either its content or a centered loading state. Loading uses a 22px spinning branch icon above muted text (`Loading worktrees…` or `Loading branches…`).
+The window has a title, then either its content or a centered loading state. A recent worktree snapshot appears immediately when available while Git refreshes it in the background; otherwise loading uses a 22px spinning branch icon above muted text (`Loading worktrees…` or `Loading branches…`).
 
 The main screen has a 34px filter input and a scrollable list. Every repository group shows its short repository name, optional machine name, and main checkout path. Its worktrees are 38px rows with the branch name, `main` for the primary checkout, `open` for a worktree already shown by a Herdr space, and a clean/changes status. The selected row uses the theme's selected color.
 

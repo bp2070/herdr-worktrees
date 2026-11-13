@@ -5,6 +5,20 @@ export const slug = name => name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|
 // Herdr key bindings use worktrees.<command>; nextCommand may provide the
 // fully qualified action or just its command suffix depending on the host.
 export const commandName = command => command.startsWith("worktrees.") ? command.slice("worktrees.".length) : command;
+export function cachedGroups(cache, now, maxAge) {
+  if (!cache || !Array.isArray(cache.groups) || !Number.isFinite(cache.savedAt)) return null;
+  const age = now - cache.savedAt;
+  return age >= 0 && age <= maxAge ? cache.groups : null;
+}
+
+// Persist only Git data. Herdr space objects are live, can change between
+// windows, and are restored from spaces() when a cached result is used.
+export function cacheSnapshot(groups) {
+  return groups.map(group => ({
+    key: group.key, machine: group.machine, main: group.main, name: group.name, folder: group.folder, error: group.error,
+    entries: group.entries.map(entry => ({ path: entry.path, branch: entry.branch, main: entry.main, dirty: entry.dirty })),
+  }));
+}
 export const idOf = (group, entry) => `${group.key}\u0000${entry.path}`;
 export const normalizePath = path => path?.replace(/\\/g, "/") ?? null;
 export const groupKey = (machine, main) => `${machine ?? ""}\u0000${main}`;
