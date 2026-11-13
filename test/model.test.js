@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, groupSummary, idOf, moveIndex, moveSelectedId,
-  listWindowHeight, normalizePath, pathContains, repoName, selectedId, slug, sortWorktrees, spaceForWorktree, worktreePathName,
+  listWindowHeight, normalizePath, pathContains, repoName, selectedId, slug, sortWorktrees, spaceForWorktree, trackingStatus, worktreePathName,
   visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktrees/model.js";
 
@@ -25,8 +25,8 @@ test("cachedGroups returns only a recent well-formed cache", () => {
 });
 
 test("cacheSnapshot excludes live Herdr space data", () => {
-  const snapshot = cacheSnapshot([{ key: "repo", machine: null, main: "C:/repo", name: "repo", folder: "C:/repo", error: "", entries: [{ path: "C:/repo", branch: "main", main: true, dirty: false, space: { id: "space-1" } }] }]);
-  assert.deepEqual(snapshot, [{ key: "repo", machine: null, main: "C:/repo", name: "repo", folder: "C:/repo", error: "", entries: [{ path: "C:/repo", branch: "main", main: true, dirty: false }] }]);
+  const snapshot = cacheSnapshot([{ key: "repo", machine: null, main: "C:/repo", name: "repo", folder: "C:/repo", error: "", entries: [{ path: "C:/repo", branch: "main", main: true, dirty: false, ahead: 3, behind: 2, space: { id: "space-1" } }] }]);
+  assert.deepEqual(snapshot, [{ key: "repo", machine: null, main: "C:/repo", name: "repo", folder: "C:/repo", error: "", entries: [{ path: "C:/repo", branch: "main", main: true, dirty: false, ahead: 3, behind: 2 }] }]);
 });
 
 test("slug creates a safe one-directory worktree name", () => {
@@ -68,6 +68,11 @@ test("group and repository helpers preserve machine separation and repository na
   assert.equal(repoName("C:/src/app"), "app");
   assert.equal(repoName("/home/me/repo/"), "repo");
   assert.equal(worktreePathName("C:\\worktrees\\app\\feature-login"), "feature-login");
+});
+
+test("trackingStatus reads behind/ahead counts and rejects malformed output", () => {
+  assert.deepEqual(trackingStatus("2\t3"), { behind: 2, ahead: 3 });
+  assert.deepEqual(trackingStatus("no upstream"), { behind: null, ahead: null });
 });
 
 test("groupSummary counts visible worktrees, open spaces, and changed worktrees", () => {

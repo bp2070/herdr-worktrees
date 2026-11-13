@@ -16,7 +16,7 @@ export function cachedGroups(cache, now, maxAge) {
 export function cacheSnapshot(groups) {
   return groups.map(group => ({
     key: group.key, machine: group.machine, main: group.main, name: group.name, folder: group.folder, error: group.error,
-    entries: group.entries.map(entry => ({ path: entry.path, branch: entry.branch, main: entry.main, dirty: entry.dirty })),
+    entries: group.entries.map(entry => ({ path: entry.path, branch: entry.branch, main: entry.main, dirty: entry.dirty, ahead: entry.ahead ?? null, behind: entry.behind ?? null })),
   }));
 }
 export const idOf = (group, entry) => `${group.key}\u0000${entry.path}`;
@@ -24,6 +24,11 @@ export const normalizePath = path => path?.replace(/\\/g, "/") ?? null;
 export const groupKey = (machine, main) => `${machine ?? ""}\u0000${main}`;
 export const repoName = main => main.split(/[\\/]/).filter(Boolean).pop() ?? "repository";
 export const worktreePathName = path => normalizePath(path)?.split("/").filter(Boolean).pop() ?? "worktree";
+
+export function trackingStatus(text) {
+  const [behind, ahead] = text.trim().split(/\s+/).map(Number);
+  return Number.isInteger(behind) && behind >= 0 && Number.isInteger(ahead) && ahead >= 0 ? { behind, ahead } : { behind: null, ahead: null };
+}
 
 export function groupSummary(entries) {
   return entries.reduce((summary, entry) => ({

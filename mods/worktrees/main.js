@@ -3,7 +3,7 @@ import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, setShared, shared, spaces, theme } from "herdr";
 import {
   cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, groupSummary, idOf, listWindowHeight, moveIndex, moveSelectedId,
-  repoName, selectedId, slug, spaceForWorktree, visibleEntries, worktreeDestination, worktreePathName, worktrees,
+  repoName, selectedId, slug, spaceForWorktree, trackingStatus, visibleEntries, worktreeDestination, worktreePathName, worktrees,
 } from "./model.js";
 
 const CACHE_KEY = "worktrees.cache.v1";
@@ -103,9 +103,12 @@ export default class Worktrees extends View {
           if (!list.ok) return { ...group, entries: [], error: list.err || "Could not list worktrees." };
           const checkoutList = worktrees(list.out);
           const entries = await Promise.all(checkoutList.map(async entry => {
-            const status = await git(entry.path, ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain"], group.machine);
+            const [status, tracking] = await Promise.all([
+              git(entry.path, ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain"], group.machine),
+              git(entry.path, ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], group.machine),
+            ]);
             const space = spaceForWorktree(spaceList, paneFolders, group.machine, entry, checkoutList);
-            return { ...entry, dirty: status.ok ? Boolean(status.out) : null, space };
+            return { ...entry, dirty: status.ok ? Boolean(status.out) : null, ...trackingStatus(tracking.ok ? tracking.out : ""), space };
           }));
           return { ...group, entries, error: "" };
         }));
@@ -206,30 +209,38 @@ export default class Worktrees extends View {
     return div().flex_none().h(18).px(6).flex().items_center().rounded(5).bg(`${color}26`).text_size(10.5).font_semibold().text_color(color).child(label);
   }
 
+  trackingStatus(entry, t) {
+    return h_flex().flex_none().gap(5).items_center().text_size(10.5).font_semibold()
+      .when(entry.ahead > 0, el => el.child(div().text_color(t.accent).child(`↑${entry.ahead}`)))
+      .when(entry.behind > 0, el => el.child(div().text_color(t.blocked).child(`↓${entry.behind}`)));
+  }
+
   worktreeRow(entry, group, index, count, t) {
     const selected = this.selected === idOf(group, entry);
     const active = Boolean(entry.space?.active);
-    const stateColor = entry.dirty === null ? t.dim : entry.dirty ? t.blocked : t.done;
-    const status = entry.dirty === null ? "Unknown" : entry.dirty ? "Changes" : "Clean";
     const folderName = worktreePathName(entry.path);
     // Bridge the 1px sibling gap without overlapping the next rail; overlap
     // would make the shared edge visibly darker at some display scales.
     const connector = div().relative().flex_none().w(16).h_full()
       .child(div().absolute().left(5).top(index === 0 ? 1 : 0).bottom(index === count - 1 ? 17 : -1).w(1).bg(`${t.dim}88`))
       .child(div().absolute().left(5).top(17).w(11).h(1).bg(`${t.dim}88`));
+    const details = h_flex().flex_1().min_w(0).gap(10).items_center()
+      .child(div().min_w(0).truncate().font_semibold().text_color(t.foreground).child(folderName))
+      .child(h_flex().flex_none().gap(3).items_center().text_color(t.dim)
+        .child(svg("mods/worktrees/branch.svg").size(13))
+        .child(div().truncate().text_size(11).child(entry.branch)));
+    const metadata = h_flex().flex_none().gap(4).items_center()
+      .when(active, el => el.child(this.badge("Current", t.accent)))
+      .when(Boolean(entry.space) && !active, el => el.child(this.badge("Open", t.accent)))
+      .child(this.trackingStatus(entry, t))
+      .when(entry.dirty === true, el => el.child(div().flex_none().size(7).rounded_full().bg(t.blocked)));
+    const content = h_flex().flex_1().min_w(0).h_full().px(6).gap(9).items_center().rounded(7).bg(selected ? t.selected : t.surface).hover(state => state.bg(t.hover))
+      .child(details)
+      .child(metadata);
     return h_flex().id(`worktree-${group.key}-${index}`).flex_none().h(34).px(10).gap(4).items_center().cursor_pointer()
       .on_click((_event, cx) => { this.selected = idOf(group, entry); this.activeInput().focus(); cx.notify(); })
       .child(connector)
-      .child(h_flex().flex_1().min_w(0).h_full().px(6).gap(9).items_center().rounded(7).bg(selected ? t.selected : t.surface).hover(state => state.bg(t.hover))
-        .child(h_flex().flex_1().min_w(0).gap(10).items_center()
-          .child(div().min_w(0).truncate().font_semibold().text_color(t.foreground).child(folderName))
-          .child(h_flex().flex_none().gap(3).items_center().text_color(t.dim)
-            .child(svg("mods/worktrees/branch.svg").size(13))
-            .child(div().truncate().text_size(11).child(entry.branch))))
-        .child(h_flex().flex_none().gap(4).items_center()
-          .when(active, el => el.child(this.badge("Current", t.accent)))
-          .when(Boolean(entry.space) && !active, el => el.child(this.badge("Open", t.accent)))
-          .child(this.badge(status, stateColor))));
+      .child(content);
   }
 
   loadingView(t, label) {
