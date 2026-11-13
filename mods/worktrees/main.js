@@ -41,8 +41,6 @@ export default class Worktrees extends View {
     this.filterInput = this.makeInput("Filter worktrees by branch name…", (value, cx) => { this.filter = value; this.selectFirst(); cx.notify(); });
     this.branchInput = this.makeInput("Filter branches…", (value, cx) => { this.branchFilter = value; this.branchAt = 0; cx.notify(); });
     this.nameInput = this.makeInput("Worktree folder name", (value, cx) => { this.worktreeName = value; cx.notify(); });
-    // The input is absent during initial loading. refresh() focuses it only
-    // after the list screen is mounted inside the native overlay.
     cx.timer.every(15000, cx => this.refresh(cx));
     cx.spawn(async cx => {
       for (;;) this.command(await nextCommand(), cx);
@@ -74,12 +72,8 @@ export default class Worktrees extends View {
     cx.notify();
   }
 
-  scheduleRequestedFocus(cx) {
-    const screen = this.focusRequests.take(this.mode);
-    if (!screen) return;
-    cx.timer.after(100, () => {
-      if (this.mode === screen) this.activeInput().focus();
-    });
+  focusRequestedInput(screen) {
+    if (this.focusRequests.take(screen)) this.activeInput().focus();
   }
 
   refresh(cx) {
@@ -116,7 +110,6 @@ export default class Worktrees extends View {
       } catch (error) { this.error = String(error?.message ?? error); }
       finally {
         this.loading = false; this.refreshing = false; cx.notify();
-        this.scheduleRequestedFocus(cx);
       }
     });
   }
@@ -136,7 +129,6 @@ export default class Worktrees extends View {
       finally {
         this.branchLoading = false;
         cx.notify();
-        this.scheduleRequestedFocus(cx);
       }
     });
   }
@@ -144,7 +136,7 @@ export default class Worktrees extends View {
   chooseBranch(cx) {
     const branch = this.shownBranches()[this.branchAt];
     if (!branch) return;
-    this.branch = branch; this.worktreeName = branch; this.mode = "name"; this.focusRequests.request("name"); this.nameInput.set_value(branch); cx.notify(); this.scheduleRequestedFocus(cx);
+    this.branch = branch; this.worktreeName = branch; this.mode = "name"; this.focusRequests.request("name"); this.nameInput.set_value(branch); cx.notify();
   }
 
   async machineHome(machine) {
@@ -192,8 +184,7 @@ export default class Worktrees extends View {
       if (this.mode === "list") return this.close();
       this.mode = this.mode === "name" ? "branches" : "list";
       this.focusRequests.request(this.mode);
-      cx.notify();
-      return this.scheduleRequestedFocus(cx);
+      return cx.notify();
     }
     if (command === "down" && this.mode !== "name") return this.move(1, cx);
     if (command === "up" && this.mode !== "name") return this.move(-1, cx);
@@ -222,15 +213,16 @@ export default class Worktrees extends View {
       .child(label);
   }
 
-  inputField(input, t) {
-    return Input.new(input).h(34).px(10).items_center().rounded(6).border(1)
-      .border_color(t.accent).bg(t.background).text_color(t.foreground)
+  inputField(input, t, screen) {
+    return div().flex_none().on_size_change(() => this.focusRequestedInput(screen))
       .on_key_down((event, cx) => {
         if (["up", "down", "escape"].includes(event.key)) {
           this.command(event.key, cx);
           cx.stop_propagation();
         }
-      });
+      })
+      .child(Input.new(input).h(34).px(10).items_center().rounded(6).border(1)
+        .border_color(t.accent).bg(t.background).text_color(t.foreground));
   }
 
   shortcut(command, fallback) {
@@ -252,9 +244,9 @@ export default class Worktrees extends View {
     ));
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("worktrees-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
+      .child(this.inputField(this.filterInput, t, "list"))
       .when(this.loading, el => el.child(this.loadingView(t, "Loading worktrees…")))
       .when(!this.loading, el => el
-        .child(this.inputField(this.filterInput, t))
         .when(Boolean(this.error), item => item.child(div().text_color(t.muted).child(this.error)))
         .when(groups.length > 0, item => item.child(list)));
   }
@@ -271,7 +263,7 @@ export default class Worktrees extends View {
       .when(this.branchLoading, el => el.child(this.loadingView(t, "Loading branches…")))
       .when(!this.branchLoading, el => el
         .child(div().text_color(t.muted).child(`New worktree in ${this.createGroup?.name ?? "repository"}`))
-        .child(this.inputField(this.branchInput, t))
+        .child(this.inputField(this.branchInput, t, "branches"))
         .when(Boolean(this.error), item => item.child(div().text_color(t.blocked).child(this.error)))
         .child(list));
   }
@@ -280,7 +272,7 @@ export default class Worktrees extends View {
     return v_flex().flex_1().gap(10)
       .child(div().text_color(t.muted).child(`Create a worktree for ${this.branch ?? "the selected branch"}.`))
       .child(div().text_size(11).text_color(t.dim).child("Folder name"))
-      .child(this.inputField(this.nameInput, t))
+      .child(this.inputField(this.nameInput, t, "name"))
       .when(Boolean(this.error), el => el.child(div().text_color(t.blocked).child(this.error)))
       .child(div().text_size(11).text_color(t.dim).child("Enter creates the worktree · Esc returns to branches"));
   }

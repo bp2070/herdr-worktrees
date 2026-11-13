@@ -6,7 +6,7 @@ A floating window for navigating Git worktrees already represented by Herdr spac
 
 ## What you see
 
-The window has a title, then either its content or a centered loading state. A recent worktree snapshot appears immediately when available while Git refreshes it in the background; otherwise loading uses a 22px spinning branch icon above muted text (`Loading worktrees…` or `Loading branches…`).
+The window has a title, then its content or a loading state. The worktree filter is visible and focused immediately, even while Git loads; the remaining space shows a centered 22px spinning branch icon above muted `Loading worktrees…` text. A recent worktree snapshot appears immediately when available while Git refreshes it in the background. The branch-chooser loading state uses the same spinner above `Loading branches…`.
 
 The main screen has a 34px filter input and a scrollable list. Every repository group shows its short repository name, optional machine name, and main checkout path. Its worktrees are sorted with worktrees already shown by a Herdr space (`open`) first, then by branch name ascending. Rows are 38px tall with the branch name, `main` for the primary checkout, `open` for a worktree already shown by a Herdr space, and a clean/changes status. The selected row uses the theme's selected color.
 
@@ -14,7 +14,7 @@ The new-worktree flow first shows a branch filter and a scrollable local-branch 
 
 ## How it behaves
 
-The filter input always retains keyboard focus; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input. `Enter` opens it. The configured new-worktree action (default `Alt+Shift+N`) starts creation in its repository, and the configured remove action (default `Alt+Shift+R`) opens safe removal for a non-main worktree that has a Herdr space. The bottom hint reads the live mod key bindings. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
+The worktree filter receives focus as soon as the overlay lays out, including while the initial Git refresh is loading, and it always retains keyboard focus afterward; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input. `Enter` opens it. The configured new-worktree action (default `Alt+Shift+N`) starts creation in its repository, and the configured remove action (default `Alt+Shift+R`) opens safe removal for a non-main worktree that has a Herdr space. The bottom hint reads the live mod key bindings. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
 
 Creating lists local branches that are not currently checked out in any worktree. Enter on a branch continues to naming. Enter on the name creates `~/.herdr/worktrees/<repo>/<folder-name>`, checks out the selected branch there, and starts a new Herdr space. The folder name is sanitized into one safe path component.
 
