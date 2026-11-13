@@ -49,10 +49,22 @@ export function filterBranches(branches, filter) {
   return branches.filter(branch => !query || branch.toLowerCase().includes(query));
 }
 
+// Open worktrees lead their repository's list. Use code-point comparison rather
+// than locale settings so the visible order remains consistent across machines.
+export function sortWorktrees(entries) {
+  return [...entries].sort((a, b) => {
+    const openOrder = Number(Boolean(b.space)) - Number(Boolean(a.space));
+    if (openOrder) return openOrder;
+    const aName = a.branch.toLowerCase();
+    const bName = b.branch.toLowerCase();
+    return aName < bName ? -1 : aName > bName ? 1 : a.branch < b.branch ? -1 : a.branch > b.branch ? 1 : 0;
+  });
+}
+
 export function filterGroups(groups, filter) {
   const query = filter.trim().toLowerCase();
   return groups
-    .map(group => ({ ...group, entries: group.entries.filter(entry => !query || entry.branch.toLowerCase().includes(query)) }))
+    .map(group => ({ ...group, entries: sortWorktrees(group.entries.filter(entry => !query || entry.branch.toLowerCase().includes(query))) }))
     .filter(group => group.entries.length > 0 || group.error);
 }
 

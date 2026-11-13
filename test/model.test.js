@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
-  normalizePath, pathContains, repoName, selectedId, slug, spaceForWorktree,
+  normalizePath, pathContains, repoName, selectedId, slug, sortWorktrees, spaceForWorktree,
   visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktrees/model.js";
 
@@ -77,12 +77,23 @@ test("filterGroups retains matching entries and groups with errors", () => {
 
 test("visibleEntries flattens filtered groups in display order", () => {
   const groups = [group("one", ["main", "feature/login"]), group("two", ["fix/menu"])];
-  assert.deepEqual(visibleEntries(groups, "").map(item => item.entry.branch), ["main", "feature/login", "fix/menu"]);
+  assert.deepEqual(visibleEntries(groups, "").map(item => item.entry.branch), ["feature/login", "main", "fix/menu"]);
 });
 
-test("selectedId chooses the first visible worktree by default", () => {
+test("sortWorktrees puts open worktrees first, then sorts branch names ascending", () => {
+  const entries = [
+    { branch: "zebra", space: { id: "z" } },
+    { branch: "Beta" },
+    { branch: "alpha", space: { id: "a" } },
+    { branch: "aardvark" },
+  ];
+  assert.deepEqual(sortWorktrees(entries).map(entry => entry.branch), ["alpha", "zebra", "aardvark", "Beta"]);
+  assert.deepEqual(entries.map(entry => entry.branch), ["zebra", "Beta", "alpha", "aardvark"]);
+});
+
+test("selectedId chooses the first sorted visible worktree by default", () => {
   const groups = [group("one", ["main", "feature/login"])];
-  assert.equal(selectedId(groups, "", null), idOf(groups[0], groups[0].entries[0]));
+  assert.equal(selectedId(groups, "", null), idOf(groups[0], groups[0].entries[1]));
 });
 
 test("selectedId preserves a valid selection and resets an invalid one after filtering", () => {
