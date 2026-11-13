@@ -2,6 +2,10 @@
 
 A floating window for browsing Git worktrees as grouped repository lists, switching workspaces, and creating worktrees from eligible local branches.
 
+## Preview
+
+![Herdr Worktrees preview](preview.png)
+
 ## Development
 
 This repository is installed into Herdr as a directory junction:
