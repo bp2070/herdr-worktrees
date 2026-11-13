@@ -1,6 +1,6 @@
 # Herdr Worktrees
 
-A floating Herdr mod for browsing Git worktrees as grouped repository lists, switching workspaces, and creating worktrees from eligible local branches.
+A floating window for browsing Git worktrees as grouped repository lists, switching workspaces, and creating worktrees from eligible local branches.
 
 ## Development
 
