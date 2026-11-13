@@ -2,7 +2,7 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, spaces, theme } from "herdr";
 import {
-  eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
+  commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
   repoName, selectedId, slug, spaceForWorktree, visibleEntries, worktreeDestination, worktrees,
 } from "./model.js";
 
@@ -165,6 +165,7 @@ export default class Worktrees extends View {
   close() { const overlay = props()?.overlay; if (overlay) closeOverlay(overlay); }
 
   command(command, cx) {
+    command = commandName(command);
     if (command === "escape") {
       if (this.mode === "list") return this.close();
       this.mode = this.mode === "name" ? "branches" : "list";

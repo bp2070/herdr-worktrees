@@ -2,6 +2,9 @@
 // or GPUI imports, so Node's built-in test runner can exercise them directly.
 
 export const slug = name => name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+// Herdr key bindings use worktrees.<command>; nextCommand may provide the
+// fully qualified action or just its command suffix depending on the host.
+export const commandName = command => command.startsWith("worktrees.") ? command.slice("worktrees.".length) : command;
 export const idOf = (group, entry) => `${group.key}\u0000${entry.path}`;
 export const normalizePath = path => path?.replace(/\\/g, "/") ?? null;
 export const groupKey = (machine, main) => `${machine ?? ""}\u0000${main}`;

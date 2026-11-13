@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
+  commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
   normalizePath, pathContains, repoName, selectedId, slug, spaceForWorktree,
   visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktrees/model.js";
@@ -10,6 +10,11 @@ const group = (key, branches, error = "") => ({
   key,
   entries: branches.map((branch, index) => ({ path: `C:/worktrees/${key}/${branch}`, branch, main: index === 0 })),
   error,
+});
+
+test("commandName accepts Herdr's qualified mod actions", () => {
+  assert.equal(commandName("worktrees.up"), "up");
+  assert.equal(commandName("new"), "new");
 });
 
 test("slug creates a safe one-directory worktree name", () => {
