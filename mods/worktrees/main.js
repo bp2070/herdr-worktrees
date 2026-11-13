@@ -2,8 +2,8 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
 import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, setShared, shared, spaces, theme } from "herdr";
 import {
-  cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
-  repoName, selectedId, slug, spaceForWorktree, visibleEntries, worktreeDestination, worktrees,
+  cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, groupSummary, idOf, listWindowHeight, moveIndex, moveSelectedId,
+  repoName, selectedId, slug, spaceForWorktree, visibleEntries, worktreeDestination, worktreePathName, worktrees,
 } from "./model.js";
 
 const CACHE_KEY = "worktrees.cache.v1";
@@ -62,6 +62,11 @@ export default class Worktrees extends View {
   ensureSelection() { this.selected = selectedId(this.groups, this.filter, this.selected); }
   selectedEntry() { return this.visibleEntries().find(({ group, entry }) => idOf(group, entry) === this.selected) ?? null; }
   shownBranches() { return filterBranches(this.branches, this.branchFilter); }
+  windowHeight() {
+    if (this.mode === "list") return listWindowHeight(this.groups, this.filter);
+    if (this.mode === "branches") return Math.min(760, Math.max(260, 130 + this.shownBranches().length * 34));
+    return 260;
+  }
 
   move(delta, cx) {
     const items = this.mode === "branches" ? this.shownBranches() : this.visibleEntries();
@@ -197,14 +202,26 @@ export default class Worktrees extends View {
     if (command === "remove" && this.mode === "list") { const selected = this.selectedEntry(); if (selected) return this.remove(selected.entry); }
   }
 
+  badge(label, color) {
+    return div().flex_none().h(18).px(6).flex().items_center().rounded(5).bg(`${color}26`).text_size(10.5).font_semibold().text_color(color).child(label);
+  }
+
   worktreeRow(entry, group, index, t) {
-    const selected = this.selected === idOf(group, entry); const status = entry.dirty === null ? "status unavailable" : entry.dirty ? "changes" : "clean";
-    return h_flex().id(`worktree-${group.key}-${index}`).flex_none().h(38).px(10).gap(9).items_center().rounded(6).cursor_pointer().bg(selected ? t.selected : t.surface).hover(state => state.bg(t.hover))
+    const selected = this.selected === idOf(group, entry);
+    const active = Boolean(entry.space?.active);
+    const stateColor = entry.dirty === null ? t.dim : entry.dirty ? t.blocked : t.done;
+    const status = entry.dirty === null ? "Unknown" : entry.dirty ? "Changes" : "Clean";
+    const folderName = worktreePathName(entry.path);
+    return h_flex().id(`worktree-${group.key}-${index}`).flex_none().h(34).px(10).gap(9).items_center().rounded(7).cursor_pointer().bg(selected ? t.selected : t.surface).hover(state => state.bg(t.hover))
       .on_click((_event, cx) => { this.selected = idOf(group, entry); this.activeInput().focus(); cx.notify(); })
-      .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(t.foreground).child(entry.branch))
-      .when(entry.main, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child("main")))
-      .when(Boolean(entry.space), el => el.child(div().flex_none().text_size(11).text_color(t.accent).child("open")))
-      .child(div().flex_none().text_size(11).text_color(entry.dirty ? t.blocked : t.done).child(status));
+      .child(h_flex().flex_1().min_w(0).gap(6).items_center()
+        .child(div().min_w(0).truncate().font_semibold().text_color(t.foreground).child(folderName))
+        .child(div().flex_none().truncate().text_size(11).text_color(t.dim).child(`[${entry.branch}]`))
+        .when(entry.main, el => el.child(div().flex_none().text_size(10.5).text_color(t.dim).child("main"))))
+      .child(h_flex().flex_none().gap(4).items_center()
+        .when(active, el => el.child(this.badge("Current", t.accent)))
+        .when(Boolean(entry.space) && !active, el => el.child(this.badge("Open", t.accent)))
+        .child(this.badge(status, stateColor)));
   }
 
   loadingView(t, label) {
@@ -232,16 +249,20 @@ export default class Worktrees extends View {
 
   renderList(t) {
     const groups = this.visibleGroups();
-    const rows = v_flex().id("worktrees-list").size_full().gap(14).overflow_y_scroll().children(groups.map(group =>
-      v_flex().gap(6)
+    const rows = v_flex().id("worktrees-list").size_full().gap(10).overflow_y_scroll().children(groups.map(group => {
+      const summary = groupSummary(group.entries);
+      const summaryText = `${summary.total} ${summary.total === 1 ? "worktree" : "worktrees"} · ${summary.open} open${summary.changed ? ` · ${summary.changed} changes` : ""}`;
+      return v_flex().gap(4)
         .child(v_flex().gap(1)
           .child(h_flex().items_center().gap(8)
             .child(div().flex_1().truncate().font_semibold().text_color(t.foreground).child(group.name))
             .when(Boolean(group.machine), header => header.child(div().text_size(11).text_color(t.dim).child(group.machine))))
-          .child(div().truncate().text_size(11).text_color(t.dim).child(group.main)))
+          .child(h_flex().min_w(0).gap(10).items_center()
+            .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(group.main))
+            .child(div().flex_none().text_size(11).text_color(t.muted).child(summaryText))))
         .when(Boolean(group.error), groupEl => groupEl.child(div().text_color(t.blocked).child(group.error)))
-        .children(group.entries.map((entry, index) => this.worktreeRow(entry, group, index, t))),
-    ));
+        .children(group.entries.map((entry, index) => this.worktreeRow(entry, group, index, t)));
+    }));
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("worktrees-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
       .child(this.inputField(this.filterInput, t, "list"))
@@ -281,7 +302,7 @@ export default class Worktrees extends View {
     const t = theme();
     const content = this.mode === "list" ? this.renderList(t) : this.mode === "branches" ? this.renderBranches(t) : this.renderName(t);
     const hint = this.mode === "list" ? `↑↓ select · Enter open · ${this.shortcut("new", "alt-shift-n")} new · ${this.shortcut("remove", "alt-shift-r")} remove · Esc close` : this.mode === "branches" ? "↑↓ select branch · Enter continue · Esc back" : "Enter create · Esc back";
-    return v_flex().id("worktrees").size_full().p(14).gap(10).bg(t.popover).text_size(13)
+    return v_flex().id("worktrees").w_full().h(this.windowHeight()).p(14).gap(10).bg(t.popover).text_size(13)
       .child(div().font_semibold().text_color(t.foreground).child(this.mode === "list" ? "Worktrees" : this.mode === "branches" ? "Choose a branch" : "Name worktree"))
       .child(content)
       .child(div().text_size(11).text_color(t.dim).child(hint));

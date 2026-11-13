@@ -8,7 +8,7 @@ A floating window for navigating Git worktrees already represented by Herdr spac
 
 The window has a title, then its content or a loading state. The worktree filter is visible and focused immediately, even while Git loads; the remaining space shows a centered 22px spinning branch icon above muted `Loading worktrees…` text. A recent worktree snapshot appears immediately when available while Git refreshes it in the background. The branch-chooser loading state uses the same spinner above `Loading branches…`.
 
-The main screen has a 34px filter input and a scrollable list. Every repository group shows its short repository name, optional machine name, and main checkout path. Its worktrees are sorted with worktrees already shown by a Herdr space (`open`) first, then by branch name ascending. Rows are 38px tall with the branch name, `main` for the primary checkout, `open` for a worktree already shown by a Herdr space, and a clean/changes status. The selected row uses the theme's selected color.
+The main screen has a 34px filter input and a scrollable list. Every repository group shows its short repository name, optional machine name, main checkout path, and a live visible-worktree summary (`3 worktrees · 2 open · 1 changes`). Its worktrees are sorted with worktrees already shown by a Herdr space (`open`) first, then by branch name ascending. Rows are 34px tall: the worktree folder name is shown with the Git branch beside it in brackets; the `main` label remains for the primary checkout. Compact badges show `Current` for the active Herdr space, `Open` for another open space, and Clean/Changes/Unknown Git state. The selected row uses the theme's selected color.
 
 The new-worktree flow first shows a branch filter and a scrollable local-branch list, then a name screen with a folder-name input. The name starts as the chosen branch name.
 
@@ -20,7 +20,7 @@ Creating lists local branches that are not currently checked out in any worktree
 
 ## Built from
 
-`mods/worktrees/mod.json` registers a `place: none` mod with a 680×540 floating window. `main.js` is a GPUI `View`; it reads spaces and panes, runs Git with `exec`, opens spaces with `space.select`/`space.new`, and opens the shipped `worktree` removal dialog with `openOverlay`. It uses `spinner.svg` with native `.spin(900)`.
+`mods/worktrees/mod.json` registers a `place: none` mod with a 720px-wide floating window. Its height follows the visible list content from a 260px minimum through a 760px maximum; longer lists scroll. `main.js` is a GPUI `View`; it reads spaces and panes, runs Git with `exec`, opens spaces with `space.select`/`space.new`, and opens the shipped `worktree` removal dialog with `openOverlay`. It uses `spinner.svg` with native `.spin(900)`.
 
 `model.js` contains pure helpers for parsing `git worktree list --porcelain`, worktree sorting, branch eligibility/filtering, IDs, and safe folder slugs. Node's built-in test runner tests those helpers in `test/model.test.js`.
 

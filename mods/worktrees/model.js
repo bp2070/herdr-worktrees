@@ -23,6 +23,24 @@ export const idOf = (group, entry) => `${group.key}\u0000${entry.path}`;
 export const normalizePath = path => path?.replace(/\\/g, "/") ?? null;
 export const groupKey = (machine, main) => `${machine ?? ""}\u0000${main}`;
 export const repoName = main => main.split(/[\\/]/).filter(Boolean).pop() ?? "repository";
+export const worktreePathName = path => normalizePath(path)?.split("/").filter(Boolean).pop() ?? "worktree";
+
+export function groupSummary(entries) {
+  return entries.reduce((summary, entry) => ({
+    total: summary.total + 1,
+    open: summary.open + Number(Boolean(entry.space)),
+    changed: summary.changed + Number(entry.dirty === true),
+  }), { total: 0, open: 0, changed: 0 });
+}
+
+// The content-height budget accounts for the fixed window chrome, visible
+// repository headers, compact worktree rows, and gaps between groups.
+export function listWindowHeight(groups, filter, minimum = 260, maximum = 760) {
+  const shown = filterGroups(groups, filter);
+  const entries = shown.reduce((count, group) => count + group.entries.length, 0);
+  const desired = 125 + entries * 34 + shown.length * 39 + Math.max(0, shown.length - 1) * 10;
+  return Math.min(maximum, Math.max(minimum, desired));
+}
 
 export function worktrees(text) {
   const rows = [];

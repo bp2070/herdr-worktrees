@@ -1,5 +1,5 @@
 {
   "place": "none",
   "title": "Worktrees",
-  "overlay": { "kind": "window", "width": 680, "height": 540 }
+  "overlay": { "kind": "window", "width": 720 }
 }

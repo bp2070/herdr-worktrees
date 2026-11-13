@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, idOf, moveIndex, moveSelectedId,
-  normalizePath, pathContains, repoName, selectedId, slug, sortWorktrees, spaceForWorktree,
+  cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, groupSummary, idOf, moveIndex, moveSelectedId,
+  listWindowHeight, normalizePath, pathContains, repoName, selectedId, slug, sortWorktrees, spaceForWorktree, worktreePathName,
   visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktrees/model.js";
 
@@ -67,6 +67,22 @@ test("group and repository helpers preserve machine separation and repository na
   assert.notEqual(groupKey(null, "C:/src/app"), groupKey("build-box", "C:/src/app"));
   assert.equal(repoName("C:/src/app"), "app");
   assert.equal(repoName("/home/me/repo/"), "repo");
+  assert.equal(worktreePathName("C:\\worktrees\\app\\feature-login"), "feature-login");
+});
+
+test("groupSummary counts visible worktrees, open spaces, and changed worktrees", () => {
+  assert.deepEqual(groupSummary([
+    { dirty: false, space: { id: "main" } },
+    { dirty: true, space: { id: "feature" } },
+    { dirty: null },
+  ]), { total: 3, open: 2, changed: 1 });
+});
+
+test("listWindowHeight fits visible entries while respecting its bounds", () => {
+  const groups = [group("one", ["main", "feature/login"]), group("two", ["fix/menu"])];
+  assert.equal(listWindowHeight(groups, "", 100, 1_000), 125 + 3 * 34 + 2 * 39 + 10);
+  assert.equal(listWindowHeight(groups, "login", 260, 760), 260);
+  assert.equal(listWindowHeight(groups, "", 100, 200), 200);
 });
 
 test("filterGroups retains matching entries and groups with errors", () => {
