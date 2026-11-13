@@ -38,7 +38,7 @@ The floating window is 720px wide and sizes its height to the visible list, from
 - `↑` / `↓` changes the highlighted result while leaving the input focused and scrolls an offscreen selection into view. These have mod-specific mappings because Herdr's native input consumes arrow keys before the mod can observe them.
 - `Enter` opens the highlighted worktree.
 - The configured **new worktree** shortcut begins the new-worktree flow (default: `Alt+Shift+N`).
-- The configured **remove worktree** shortcut opens Herdr's built-in worktree removal dialog for a non-main highlighted worktree with a Herdr space (default: `Alt+Shift+R`).
+- The configured **remove worktree** shortcut opens this mod's removal confirmation for any non-main highlighted worktree (default: `Alt+Shift+R`). It closes an associated Herdr space first, then uses `git worktree remove --force`; clean worktrees remove with Enter, while a worktree with uncommitted or untracked changes requires its folder name to be typed case-insensitively. Removal errors remain visible until the flow is retried or closed and have a **Copy error** button. If Git unregisters the worktree but leaves its folder behind, a second typed confirmation offers direct folder cleanup. A successful removal returns to the Worktrees list and refreshes it.
 
 - `Esc` goes back or closes the Worktrees window. It has a mod-specific mapping because Herdr's native input consumes Escape before the mod can observe it.
 

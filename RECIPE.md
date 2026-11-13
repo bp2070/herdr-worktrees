@@ -14,19 +14,19 @@ The new-worktree flow first shows a branch filter and a scrollable local-branch 
 
 ## How it behaves
 
-The worktree filter receives focus as soon as the overlay lays out, including while the initial Git refresh is loading, and it always retains keyboard focus afterward; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input and scroll an offscreen selection into view. `Enter` opens it. The configured new-worktree action (default `Alt+Shift+N`) starts creation in its repository, and the configured remove action (default `Alt+Shift+R`) opens safe removal for a non-main worktree that has a Herdr space. The bottom hint reads the live mod key bindings. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
+The worktree filter receives focus as soon as the overlay lays out, including while the initial Git refresh is loading, and it always retains keyboard focus afterward; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input and scroll an offscreen selection into view. `Enter` opens it. The configured new-worktree action (default `Alt+Shift+N`) starts creation in its repository, and the configured remove action (default `Alt+Shift+R`) opens safe removal for any non-main worktree. It closes any associated Herdr space, checks for uncommitted or untracked changes, and runs `git worktree remove --force`; changed worktrees require typing their folder name. If Git unregisters a worktree but leaves its folder behind, a separate typed confirmation offers direct folder cleanup. The bottom hint reads the live mod key bindings. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
 
 Creating lists local branches that are not currently checked out in any worktree. Enter on a branch continues to naming. Enter on the name creates `~/.herdr/worktrees/<repo>/<folder-name>`, checks out the selected branch there, and starts a new Herdr space. The folder name is sanitized into one safe path component.
 
 ## Built from
 
-`mods/worktrees/mod.json` registers a `place: none` mod with a 720px-wide floating window. Its height follows the visible list content from a 300px minimum through a 720px maximum; longer lists scroll. `main.js` is a GPUI `View`; it reads spaces and panes, runs Git status and local upstream-divergence queries with `exec`, opens spaces with `space.select`/`space.new`, and opens the shipped `worktree` removal dialog with `openOverlay`. It uses `spinner.svg` with native `.spin(900)` and `branch.svg` for the compact branch indicator.
+`mods/worktrees/mod.json` registers a `place: none` mod with a 720px-wide floating window. Its height follows the visible list content from a 300px minimum through a 720px maximum; longer lists scroll. `main.js` is a GPUI `View`; it reads spaces and panes, runs Git status and local upstream-divergence queries with `exec`, opens spaces with `space.select`/`space.new`, and implements a typed-confirmation removal flow. It uses `spinner.svg` with native `.spin(900)` and `branch.svg` for the compact branch indicator.
 
 `model.js` contains pure helpers for parsing `git worktree list --porcelain`, worktree sorting, branch eligibility/filtering, IDs, and safe folder slugs. Node's built-in test runner tests those helpers in `test/model.test.js`.
 
 ## Watch out
 
-Only repositories with an existing Herdr space appear. The Worktrees window lists local branches only and intentionally omits any branch already checked out by a worktree. Removal relies on Herdr's shipped `worktree` mod. `herdr-app check` validates initial loading and eager UI construction, not keyboard focus, async Git calls, or live layout behavior.
+Only repositories with an existing Herdr space appear. The Worktrees window lists local branches only and intentionally omits any branch already checked out by a worktree. Removal is implemented in this mod: it protects changed worktrees with a typed folder-name confirmation and offers direct cleanup only after Git has verified that the worktree is no longer registered. `herdr-app check` validates initial loading and eager UI construction, not keyboard focus, async Git calls, or live layout behavior.
 
 ## Done when
 

@@ -3,10 +3,10 @@ import { h_flex, v_flex, InputState, Input, Scrollbar, ScrollHandle } from "gpui
 import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, setShared, shared, spaces, theme } from "herdr";
 import {
   cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, groupSummary, idOf, listWindowHeight, moveIndex, moveSelectedId,
-  repoName, selectedId, selectedScrollIndex, slug, spaceForWorktree, trackingStatus, visibleEntries, worktreeDestination, worktreePathName, worktrees,
+  folderNameMatches, pathContains, repoName, selectedId, selectedScrollIndex, slug, spaceForWorktree, trackingStatus, visibleEntries, worktreeDestination, worktreePathName, worktrees,
 } from "./model.js";
 
-const CACHE_KEY = "worktrees.cache.v1";
+const CACHE_KEY = "worktrees.cache.v2";
 const CACHE_MAX_AGE = 120_000;
 
 function folderOf(space, paneList = panes()) {
@@ -33,6 +33,7 @@ export default class Worktrees extends View {
     this.listScroll = ScrollHandle.new(); this.branchScroll = ScrollHandle.new();
     this.mode = "list";
     this.filter = ""; this.branchFilter = ""; this.branchAt = 0; this.branches = []; this.branchLoading = false; this.createGroup = null; this.branch = null;
+    this.removeEntry = null; this.removeGroup = null; this.removeDirty = false; this.removeLoading = false; this.cleanupPath = null; this.errorCopied = false;
     const cached = cachedGroups(shared(CACHE_KEY), Date.now(), CACHE_MAX_AGE);
     if (cached) {
       this.groups = withCurrentSpaces(cached);
@@ -42,6 +43,7 @@ export default class Worktrees extends View {
     this.filterInput = this.makeInput("Filter worktrees by branch name…", (value, cx) => { this.filter = value; this.selectFirst(); cx.notify(); });
     this.branchInput = this.makeInput("Filter branches…", (value, cx) => { this.branchFilter = value; this.branchAt = 0; cx.notify(); });
     this.nameInput = this.makeInput("Worktree folder name", (value, cx) => { this.worktreeName = value; cx.notify(); });
+    this.removeInput = this.makeInput("Press Enter to remove", (value, cx) => { this.removeName = value; cx.notify(); });
     cx.timer.every(15000, cx => this.refresh(cx));
     cx.spawn(async cx => {
       for (;;) this.command(await nextCommand(), cx);
@@ -56,7 +58,7 @@ export default class Worktrees extends View {
     return input;
   }
 
-  activeInput() { return this.mode === "list" ? this.filterInput : this.mode === "branches" ? this.branchInput : this.nameInput; }
+  activeInput() { return this.mode === "list" ? this.filterInput : this.mode === "branches" ? this.branchInput : this.mode === "name" ? this.nameInput : this.removeInput; }
   visibleGroups() { return filterGroups(this.groups, this.filter); }
   visibleEntries() { return visibleEntries(this.groups, this.filter); }
   selectFirst() { this.selected = selectedId(this.groups, this.filter, null); }
@@ -103,12 +105,15 @@ export default class Worktrees extends View {
           if (!top.ok || !common.ok) continue;
           const main = common.out.endsWith("/.git") ? common.out.slice(0, -5) : common.out;
           const key = groupKey(machine, main);
-          if (!found.has(key)) found.set(key, { key, machine, main, name: repoName(main), folder: top.out });
+          if (!found.has(key)) {
+            const bare = await git(common.out, ["rev-parse", "--is-bare-repository"], machine);
+            found.set(key, { key, machine, main, name: repoName(main), folder: top.out, bare: bare.ok && bare.out === "true" });
+          }
         }
         this.groups = await Promise.all([...found.values()].map(async group => {
           const list = await git(group.main, ["worktree", "list", "--porcelain"], group.machine);
           if (!list.ok) return { ...group, entries: [], error: list.err || "Could not list worktrees." };
-          const checkoutList = worktrees(list.out);
+          const checkoutList = worktrees(list.out, !group.bare);
           const entries = await Promise.all(checkoutList.map(async entry => {
             const [status, tracking] = await Promise.all([
               git(entry.path, ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain"], group.machine),
@@ -119,10 +124,10 @@ export default class Worktrees extends View {
           }));
           return { ...group, entries, error: "" };
         }));
-        this.error = this.groups.length ? "" : "Open a Git repository in a Herdr space to manage its worktrees.";
+        if (this.mode === "list") this.error = this.groups.length ? "" : "Open a Git repository in a Herdr space to manage its worktrees.";
         this.ensureSelection();
         setShared(CACHE_KEY, { savedAt: Date.now(), groups: cacheSnapshot(this.groups) });
-      } catch (error) { this.error = String(error?.message ?? error); }
+      } catch (error) { if (this.mode === "list") this.error = String(error?.message ?? error); }
       finally {
         this.loading = false; this.refreshing = false; cx.notify();
       }
@@ -185,17 +190,97 @@ export default class Worktrees extends View {
     if (entry.space) run("space.select", { id: entry.space.id });
     else run("space.new", { folder: entry.path, machine: group.machine });
   }
-  remove(entry) {
-    if (entry.space && !entry.main) {
-      setShared(CACHE_KEY, null);
-      openOverlay({ mod: "worktree", kind: "dialog", width: 440, height: 260, props: { space: entry.space.id, action: "remove" } });
+  startRemove(entry, group, cx) {
+    if (entry.main) {
+      this.error = "The repository's main checkout cannot be removed.";
+      return cx.notify();
     }
+    this.mode = "remove"; this.removeEntry = entry; this.removeGroup = group; this.removeDirty = false; this.removeLoading = true; this.cleanupPath = null; this.removeName = ""; this.removeInput.set_value(""); this.error = ""; this.errorCopied = false; this.focusRequests.request("remove");
+    cx.notify();
+    cx.spawn(async cx => {
+      try {
+        const status = await git(entry.path, ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain"], group.machine);
+        if (!status.ok) throw new Error(status.err || "Could not inspect worktree changes.");
+        this.removeDirty = Boolean(status.out);
+      } catch (error) { this.error = String(error?.message ?? error); }
+      finally { this.removeLoading = false; cx.notify(); }
+    });
+  }
+
+  async worktreeStillRegistered(entry, group) {
+    const list = await git(group.main, ["worktree", "list", "--porcelain"], group.machine);
+    if (!list.ok) throw new Error(list.err || "Could not verify worktree removal.");
+    return worktrees(list.out).some(checkout => pathContains(checkout.path, entry.path) && pathContains(entry.path, checkout.path));
+  }
+
+  removeWorktree(cx) {
+    const entry = this.removeEntry; const group = this.removeGroup;
+    if (!entry || !group || this.removeLoading) return;
+    const name = worktreePathName(entry.path);
+    if (this.removeDirty && !folderNameMatches(this.removeName, name)) {
+      this.errorCopied = false;
+      this.error = `Type ${name} to confirm removal of the changed worktree.`;
+      return cx.notify();
+    }
+    this.removeLoading = true; this.error = ""; this.errorCopied = false; cx.notify();
+    cx.spawn(async cx => {
+      try {
+        // Close terminals before removal: they can retain directory handles on Windows.
+        if (entry.space) run("space.close", { id: entry.space.id, confirmed: true });
+        const result = await git(group.main, ["worktree", "remove", "--force", entry.path], group.machine);
+        if (result.ok) {
+          this.finishRemoval(cx);
+          return;
+        }
+        if (!await this.worktreeStillRegistered(entry, group)) {
+          this.mode = "cleanup"; this.cleanupPath = entry.path; this.removeName = ""; this.removeInput.set_value(""); this.errorCopied = false;
+          this.error = `${result.err || "Git removed the worktree registration but left its folder."} Type the folder name to delete the remaining folder.`;
+          this.focusRequests.request("cleanup");
+          return;
+        }
+        throw new Error(result.err || "git worktree remove failed.");
+      } catch (error) { this.error = String(error?.message ?? error); }
+      finally { this.removeLoading = false; cx.notify(); }
+    });
+  }
+
+  finishRemoval(cx) {
+    setShared(CACHE_KEY, null);
+    this.mode = "list"; this.removeEntry = null; this.removeGroup = null; this.cleanupPath = null; this.removeName = ""; this.error = ""; this.errorCopied = false;
+    this.focusRequests.request("list");
+    this.refresh(cx);
+    cx.notify();
+  }
+
+  cleanupRemaining(cx) {
+    const path = this.cleanupPath; const name = worktreePathName(path);
+    if (!path || this.removeLoading) return;
+    if (!folderNameMatches(this.removeName, name)) {
+      this.errorCopied = false;
+      this.error = `Type ${name} to confirm deletion of the remaining folder.`;
+      return cx.notify();
+    }
+    this.removeLoading = true; this.error = ""; this.errorCopied = false; cx.notify();
+    cx.spawn(async cx => {
+      try {
+        let result;
+        try {
+          const escaped = path.replace(/'/g, "''");
+          result = await exec("powershell.exe", ["-NoProfile", "-Command", `Remove-Item -LiteralPath '${escaped}' -Recurse -Force -ErrorAction Stop`], { on: this.removeGroup.machine });
+        } catch {}
+        if (!result || result.code !== 0) result = await exec("rm", ["-rf", path], { on: this.removeGroup.machine });
+        if (result.code !== 0) throw new Error((result.stderr ?? result.stdout ?? "Could not delete the remaining worktree folder.").trim());
+        this.finishRemoval(cx);
+      } catch (error) { this.error = String(error?.message ?? error); }
+      finally { this.removeLoading = false; cx.notify(); }
+    });
   }
   close() { const overlay = props()?.overlay; if (overlay) closeOverlay(overlay); }
 
   command(command, cx) {
     command = commandName(command);
     if (command === "escape") {
+      if ((this.mode === "remove" || this.mode === "cleanup") && this.removeLoading) return;
       if (this.mode === "list") return this.close();
       this.mode = this.mode === "name" ? "branches" : "list";
       this.focusRequests.request(this.mode);
@@ -206,10 +291,12 @@ export default class Worktrees extends View {
     if (command === "enter") {
       if (this.mode === "branches") return this.chooseBranch(cx);
       if (this.mode === "name") return this.createWorktree(cx);
+      if (this.mode === "remove") return this.removeWorktree(cx);
+      if (this.mode === "cleanup") return this.cleanupRemaining(cx);
       const selected = this.selectedEntry(); if (selected) return this.open(selected.entry, selected.group);
     }
     if (command === "new" && this.mode === "list") { const selected = this.selectedEntry(); if (selected) return this.startCreate(selected.group, cx); }
-    if (command === "remove" && this.mode === "list") { const selected = this.selectedEntry(); if (selected) return this.remove(selected.entry); }
+    if (command === "remove" && this.mode === "list") { const selected = this.selectedEntry(); if (selected) return this.startRemove(selected.entry, selected.group, cx); }
   }
 
   badge(label, color) {
@@ -332,13 +419,34 @@ export default class Worktrees extends View {
       .child(div().text_size(11).text_color(t.dim).child("Enter creates the worktree · Esc returns to branches"));
   }
 
+  renderRemoval(t) {
+    const entry = this.removeEntry;
+    const name = worktreePathName(this.cleanupPath ?? entry?.path);
+    const cleanup = this.mode === "cleanup";
+    const requiresName = cleanup || this.removeDirty;
+    return v_flex().flex_1().gap(10)
+      .child(div().text_color(t.muted).child(cleanup ? `Git unregistered this worktree but left ${this.cleanupPath}.` : `Remove ${entry?.branch ?? "the selected branch"} at ${entry?.path ?? ""}. The branch will remain.`))
+      .when(this.removeLoading, el => el.child(this.loadingView(t, cleanup ? "Deleting remaining folder…" : "Checking worktree…")))
+      .when(!this.removeLoading, el => el
+        .when(this.removeDirty, item => item.child(div().text_color(t.blocked).child("This worktree has uncommitted or untracked changes.")))
+        .when(requiresName, item => item.child(div().text_size(11).text_color(t.dim).child(`Type ${name} to confirm.`)))
+        .child(this.inputField(this.removeInput, t, cleanup ? "cleanup" : "remove"))
+        .when(Boolean(this.error), item => item.child(v_flex().gap(5)
+          .child(div().text_color(t.blocked).child(this.error))
+          .child(div().flex_none().self_start().px(7).py(3).rounded(5).bg(t.surface).hover(state => state.bg(t.hover)).cursor_pointer().text_size(11).text_color(t.foreground)
+            .child(this.errorCopied ? "Copied error" : "Copy error")
+            .on_click((_event, cx) => { cx.write_to_clipboard(this.error); this.errorCopied = true; cx.notify(); }))))
+        .child(div().text_size(11).text_color(t.dim).child(cleanup ? "Enter deletes the remaining folder · Esc keeps it" : "Enter removes the worktree · Esc cancels")));
+  }
+
   render() {
     const t = theme();
     const targetHeight = this.windowHeight();
-    const content = this.mode === "list" ? this.renderList(t) : this.mode === "branches" ? this.renderBranches(t) : this.renderName(t);
-    const hint = this.mode === "list" ? `↑↓ select · Enter open · ${this.shortcut("new", "alt-shift-n")} new · ${this.shortcut("remove", "alt-shift-r")} remove · Esc close` : this.mode === "branches" ? "↑↓ select branch · Enter continue · Esc back" : "Enter create · Esc back";
+    const content = this.mode === "list" ? this.renderList(t) : this.mode === "branches" ? this.renderBranches(t) : this.mode === "name" ? this.renderName(t) : this.renderRemoval(t);
+    const hint = this.mode === "list" ? `↑↓ select · Enter open · ${this.shortcut("new", "alt-shift-n")} new · ${this.shortcut("remove", "alt-shift-r")} remove · Esc close` : this.mode === "branches" ? "↑↓ select branch · Enter continue · Esc back" : this.mode === "name" ? "Enter create · Esc back" : "Esc cancel";
+    const title = this.mode === "list" ? "Worktrees" : this.mode === "branches" ? "Choose a branch" : this.mode === "name" ? "Name worktree" : this.mode === "cleanup" ? "Delete remaining folder?" : "Remove worktree?";
     return v_flex().id("worktrees").w_full().h(targetHeight).p(14).gap(10).bg(t.popover).text_size(13)
-      .child(div().font_semibold().text_color(t.foreground).child(this.mode === "list" ? "Worktrees" : this.mode === "branches" ? "Choose a branch" : "Name worktree"))
+      .child(div().font_semibold().text_color(t.foreground).child(title))
       .child(content)
       .child(div().text_size(11).text_color(t.dim).child(hint));
   }

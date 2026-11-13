@@ -15,7 +15,7 @@ export function cachedGroups(cache, now, maxAge) {
 // windows, and are restored from spaces() when a cached result is used.
 export function cacheSnapshot(groups) {
   return groups.map(group => ({
-    key: group.key, machine: group.machine, main: group.main, name: group.name, folder: group.folder, error: group.error,
+    key: group.key, machine: group.machine, main: group.main, name: group.name, folder: group.folder, bare: Boolean(group.bare), error: group.error,
     entries: group.entries.map(entry => ({ path: entry.path, branch: entry.branch, main: entry.main, dirty: entry.dirty, ahead: entry.ahead ?? null, behind: entry.behind ?? null })),
   }));
 }
@@ -24,6 +24,7 @@ export const normalizePath = path => path?.replace(/\\/g, "/") ?? null;
 export const groupKey = (machine, main) => `${machine ?? ""}\u0000${main}`;
 export const repoName = main => main.split(/[\\/]/).filter(Boolean).pop() ?? "repository";
 export const worktreePathName = path => normalizePath(path)?.split("/").filter(Boolean).pop() ?? "worktree";
+export const folderNameMatches = (entered, folder) => entered?.trim().toLowerCase() === folder?.trim().toLowerCase();
 
 export function trackingStatus(text) {
   const [behind, ahead] = text.trim().split(/\s+/).map(Number);
@@ -50,7 +51,7 @@ export function listWindowHeight(groups, filter, minimum = 300, maximum = 720) {
   return Math.min(maximum, Math.max(minimum, desired));
 }
 
-export function worktrees(text) {
+export function worktrees(text, hasMainCheckout = true) {
   const rows = [];
   for (const block of text.split(/\n\n+/)) {
     const lines = block.split("\n");
@@ -59,7 +60,7 @@ export function worktrees(text) {
     rows.push({
       path,
       branch: lines.find(line => line.startsWith("branch "))?.slice(7).replace(/^refs\/heads\//, "") ?? "detached",
-      main: rows.length === 0,
+      main: hasMainCheckout && rows.length === 0,
     });
   }
   return rows;
@@ -130,8 +131,15 @@ export function selectedScrollIndex(groups, filter, selected) {
 }
 
 export function pathContains(folder, path) {
-  const at = normalizePath(folder);
-  const root = normalizePath(path);
+  let at = normalizePath(folder);
+  let root = normalizePath(path);
+  // Git and terminals can report Windows drive paths with different casing.
+  // Fold only those paths; Unix paths (including remote-machine paths) remain
+  // case-sensitive.
+  if (/^[A-Za-z]:\//.test(at ?? "") && /^[A-Za-z]:\//.test(root ?? "")) {
+    at = at.toLowerCase();
+    root = root.toLowerCase();
+  }
   return Boolean(at && root && (at === root || at.startsWith(`${root}/`)));
 }
 

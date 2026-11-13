@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, groupSummary, idOf, moveIndex, moveSelectedId,
+  cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, folderNameMatches, FocusRequests, groupKey, groupSummary, idOf, moveIndex, moveSelectedId,
   listWindowHeight, normalizePath, pathContains, repoName, selectedId, selectedScrollIndex, slug, sortWorktrees, spaceForWorktree, trackingStatus, worktreePathName,
   visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktrees/model.js";
@@ -26,13 +26,18 @@ test("cachedGroups returns only a recent well-formed cache", () => {
 
 test("cacheSnapshot excludes live Herdr space data", () => {
   const snapshot = cacheSnapshot([{ key: "repo", machine: null, main: "C:/repo", name: "repo", folder: "C:/repo", error: "", entries: [{ path: "C:/repo", branch: "main", main: true, dirty: false, ahead: 3, behind: 2, space: { id: "space-1" } }] }]);
-  assert.deepEqual(snapshot, [{ key: "repo", machine: null, main: "C:/repo", name: "repo", folder: "C:/repo", error: "", entries: [{ path: "C:/repo", branch: "main", main: true, dirty: false, ahead: 3, behind: 2 }] }]);
+  assert.deepEqual(snapshot, [{ key: "repo", machine: null, main: "C:/repo", name: "repo", folder: "C:/repo", bare: false, error: "", entries: [{ path: "C:/repo", branch: "main", main: true, dirty: false, ahead: 3, behind: 2 }] }]);
 });
 
 test("slug creates a safe one-directory worktree name", () => {
   assert.equal(slug("feature/login UI"), "feature-login-UI");
   assert.equal(slug("///fix///"), "fix");
   assert.equal(slug("   "), "");
+});
+
+test("folder name confirmation ignores letter case and surrounding whitespace", () => {
+  assert.equal(folderNameMatches(" PSIF-8951 ", "psif-8951"), true);
+  assert.equal(folderNameMatches("psif-895", "psif-8951"), false);
 });
 
 test("worktrees parses normal, detached, and prunable porcelain records", () => {
@@ -48,6 +53,11 @@ test("worktrees parses normal, detached, and prunable porcelain records", () => 
     { path: "C:/worktrees/app/login", branch: "feature/login", main: false },
     { path: "C:/worktrees/app/detached", branch: "detached", main: false },
   ]);
+});
+
+test("worktrees does not mark a linked worktree as main for a bare repository", () => {
+  const input = "worktree C:/worktrees/app/psif-6166\nHEAD abc123\nbranch refs/heads/psif-6166";
+  assert.deepEqual(worktrees(input, false), [{ path: "C:/worktrees/app/psif-6166", branch: "psif-6166", main: false }]);
 });
 
 test("eligibleBranches excludes branches already checked out by another worktree", () => {
@@ -156,8 +166,9 @@ test("selectedScrollIndex targets the direct child containing a selection", () =
 
 test("normalizes Windows paths and checks descendants without prefix false positives", () => {
   assert.equal(normalizePath("C:\\repo\\sub"), "C:/repo/sub");
-  assert.equal(pathContains("C:\\repo\\sub", "C:/repo"), true);
+  assert.equal(pathContains("C:\\Repo\\Sub", "c:/repo"), true);
   assert.equal(pathContains("C:/repository", "C:/repo"), false);
+  assert.equal(pathContains("/Work/Repo", "/work/repo"), false);
 });
 
 test("spaceForWorktree assigns a space in a worktree subfolder", () => {
