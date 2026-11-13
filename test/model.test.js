@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, groupSummary, idOf, moveIndex, moveSelectedId,
-  listWindowHeight, normalizePath, pathContains, repoName, selectedId, slug, sortWorktrees, spaceForWorktree, trackingStatus, worktreePathName,
+  listWindowHeight, normalizePath, pathContains, repoName, selectedId, selectedScrollIndex, slug, sortWorktrees, spaceForWorktree, trackingStatus, worktreePathName,
   visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktrees/model.js";
 
@@ -144,6 +144,14 @@ test("moveSelectedId navigates filtered worktrees and wraps", () => {
   const menu = idOf(groups[0], groups[0].entries[2]);
   assert.equal(moveSelectedId(groups, "", main, -1), menu);
   assert.equal(moveSelectedId(groups, "login", null, 1), idOf(groups[0], groups[0].entries[1]));
+});
+
+test("selectedScrollIndex targets the direct child containing a selection", () => {
+  const groups = [group("one", ["main"]), group("broken", [], "git failed"), group("two", ["feature/login", "fix/menu"])];
+  assert.equal(selectedScrollIndex(groups, "", idOf(groups[0], groups[0].entries[0])), 0);
+  // The visible error group occupies one direct child between repositories.
+  assert.equal(selectedScrollIndex(groups, "", idOf(groups[2], groups[2].entries[1])), 3);
+  assert.equal(selectedScrollIndex(groups, "missing", "anything"), -1);
 });
 
 test("normalizes Windows paths and checks descendants without prefix false positives", () => {

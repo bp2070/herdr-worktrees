@@ -1,9 +1,9 @@
 import { View, div, svg } from "gpui-kit";
-import { h_flex, v_flex, InputState, Input, Scrollbar } from "gpui-base";
+import { h_flex, v_flex, InputState, Input, Scrollbar, ScrollHandle } from "gpui-base";
 import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, setShared, shared, spaces, theme } from "herdr";
 import {
   cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, groupSummary, idOf, listWindowHeight, moveIndex, moveSelectedId,
-  repoName, selectedId, slug, spaceForWorktree, trackingStatus, visibleEntries, worktreeDestination, worktreePathName, worktrees,
+  repoName, selectedId, selectedScrollIndex, slug, spaceForWorktree, trackingStatus, visibleEntries, worktreeDestination, worktreePathName, worktrees,
 } from "./model.js";
 
 const CACHE_KEY = "worktrees.cache.v1";
@@ -30,6 +30,7 @@ async function git(cwd, args, on) {
 export default class Worktrees extends View {
   init(_props, cx) {
     this.loading = true; this.refreshing = false; this.error = ""; this.groups = []; this.selected = null; this.focusRequests = new FocusRequests();
+    this.listScroll = ScrollHandle.new(); this.branchScroll = ScrollHandle.new();
     this.mode = "list";
     this.filter = ""; this.branchFilter = ""; this.branchAt = 0; this.branches = []; this.branchLoading = false; this.createGroup = null; this.branch = null;
     const cached = cachedGroups(shared(CACHE_KEY), Date.now(), CACHE_MAX_AGE);
@@ -71,8 +72,14 @@ export default class Worktrees extends View {
   move(delta, cx) {
     const items = this.mode === "branches" ? this.shownBranches() : this.visibleEntries();
     if (!items.length) return;
-    if (this.mode === "branches") this.branchAt = moveIndex(this.branchAt, items.length, delta);
-    else this.selected = moveSelectedId(this.groups, this.filter, this.selected, delta);
+    if (this.mode === "branches") {
+      this.branchAt = moveIndex(this.branchAt, items.length, delta);
+      this.branchScroll.scroll_to_item(this.branchAt);
+    } else {
+      this.selected = moveSelectedId(this.groups, this.filter, this.selected, delta);
+      const index = selectedScrollIndex(this.groups, this.filter, this.selected);
+      if (index >= 0) this.listScroll.scroll_to_item(index);
+    }
     this.activeInput().focus();
     cx.notify();
   }
@@ -268,19 +275,27 @@ export default class Worktrees extends View {
 
   renderList(t) {
     const groups = this.visibleGroups();
-    const rows = v_flex().id("worktrees-list").size_full().gap(10).pb(5).overflow_y_scroll().children(groups.map(group => {
+    // A ScrollHandle can reveal only direct children. Keep one direct child per
+    // worktree (with the repository heading in the first one) so arrow-key
+    // navigation can reveal a selected row without virtualizing the list.
+    const rows = v_flex().id("worktrees-list").size_full().gap(1).pb(5).overflow_y_scroll().track_scroll(this.listScroll).children(groups.flatMap((group, groupIndex) => {
       const summary = groupSummary(group.entries);
       const summaryText = `${summary.total} ${summary.total === 1 ? "worktree" : "worktrees"} · ${summary.open} open${summary.changed ? ` · ${summary.changed} changes` : ""}`;
-      return v_flex().gap(4)
-        .child(v_flex().gap(1)
-          .child(h_flex().items_center().gap(8)
-            .child(div().flex_1().truncate().font_semibold().text_color(t.foreground).child(group.name))
-            .when(Boolean(group.machine), header => header.child(div().text_size(11).text_color(t.dim).child(group.machine))))
-          .child(h_flex().min_w(0).gap(10).items_center()
-            .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(group.main))
-            .child(div().flex_none().text_size(11).text_color(t.muted).child(summaryText))))
-        .when(Boolean(group.error), groupEl => groupEl.child(div().text_color(t.blocked).child(group.error)))
-        .child(v_flex().gap(1).children(group.entries.map((entry, index) => this.worktreeRow(entry, group, index, group.entries.length, t))));
+      const header = v_flex().gap(1)
+        .child(h_flex().items_center().gap(8)
+          .child(div().flex_1().truncate().font_semibold().text_color(t.foreground).child(group.name))
+          .when(Boolean(group.machine), header => header.child(div().text_size(11).text_color(t.dim).child(group.machine))))
+        .child(h_flex().min_w(0).gap(10).items_center()
+          .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(group.main))
+          .child(div().flex_none().text_size(11).text_color(t.muted).child(summaryText)));
+      const afterGroup = groupIndex < groups.length - 1 ? 9 : 0;
+      if (!group.entries.length) return [v_flex().flex_none().gap(4).mb(afterGroup)
+        .child(header)
+        .when(Boolean(group.error), el => el.child(div().text_color(t.blocked).child(group.error)))];
+      return group.entries.map((entry, index) => v_flex().flex_none()
+        .when(index === 0, el => el.gap(4).child(header).when(Boolean(group.error), item => item.child(div().text_color(t.blocked).child(group.error))))
+        .when(index === group.entries.length - 1, el => el.mb(afterGroup))
+        .child(this.worktreeRow(entry, group, index, group.entries.length, t)));
     }));
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("worktrees-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
@@ -293,7 +308,7 @@ export default class Worktrees extends View {
 
   renderBranches(t) {
     const branches = this.shownBranches();
-    const rows = v_flex().id("branch-list").size_full().gap(2).overflow_y_scroll().children(branches.map((branch, index) =>
+    const rows = v_flex().id("branch-list").size_full().gap(2).overflow_y_scroll().track_scroll(this.branchScroll).children(branches.map((branch, index) =>
       h_flex().id(`branch-${index}`).flex_none().h(34).px(10).items_center().rounded(6).bg(index === this.branchAt ? t.selected : t.surface).hover(state => state.bg(t.hover)).cursor_pointer()
         .on_click((_event, cx) => { this.branchAt = index; this.activeInput().focus(); cx.notify(); })
         .child(div().truncate().text_color(t.foreground).child(branch)),

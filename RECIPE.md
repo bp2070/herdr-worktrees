@@ -14,7 +14,7 @@ The new-worktree flow first shows a branch filter and a scrollable local-branch 
 
 ## How it behaves
 
-The worktree filter receives focus as soon as the overlay lays out, including while the initial Git refresh is loading, and it always retains keyboard focus afterward; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input. `Enter` opens it. The configured new-worktree action (default `Alt+Shift+N`) starts creation in its repository, and the configured remove action (default `Alt+Shift+R`) opens safe removal for a non-main worktree that has a Herdr space. The bottom hint reads the live mod key bindings. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
+The worktree filter receives focus as soon as the overlay lays out, including while the initial Git refresh is loading, and it always retains keyboard focus afterward; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input and scroll an offscreen selection into view. `Enter` opens it. The configured new-worktree action (default `Alt+Shift+N`) starts creation in its repository, and the configured remove action (default `Alt+Shift+R`) opens safe removal for a non-main worktree that has a Herdr space. The bottom hint reads the live mod key bindings. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
 
 Creating lists local branches that are not currently checked out in any worktree. Enter on a branch continues to naming. Enter on the name creates `~/.herdr/worktrees/<repo>/<folder-name>`, checks out the selected branch there, and starts a new Herdr space. The folder name is sanitized into one safe path component.
 
@@ -32,6 +32,6 @@ Only repositories with an existing Herdr space appear. The Worktrees window list
 
 - `npm test` passes.
 - `herdr-app check mods/worktrees` passes.
-- The Worktrees window opens with its filter focused; `↑` and `↓` change the highlighted result while that input remains focused.
+- The Worktrees window opens with its filter focused; `↑` and `↓` change the highlighted result while that input remains focused and scroll an offscreen selection into view.
 - The new-worktree screen shows a centered spinner while branches load, then focuses its branch filter.
 - Creating a checkout opens it in a new Herdr space.

@@ -35,7 +35,7 @@ Default global shortcut: `Alt+Shift+W`.
 
 The floating window is 720px wide and sizes its height to the visible list, from 300px to a 720px maximum; lists beyond that limit scroll. Within each repository, worktrees already open in a Herdr space appear first; remaining worktrees follow in ascending branch-name order. Repository headers summarize the visible worktree, open-space, and changed-worktree counts. Each worktree is visually nested under its repository with a continuous muted tree outline, then shows its folder name and Git branch icon/name followed by Current/Open badges, an attention dot when local changes exist, and `↑N`/`↓N` local upstream-divergence counts when available; **Current** identifies the active Herdr space. The filter input receives focus as soon as the window lays out and remains available while the initial Git refresh loads, then retains keyboard focus. Use the mod-specific shortcuts in `keys.json`:
 
-- `↑` / `↓` changes the highlighted result while leaving the input focused. These have mod-specific mappings because Herdr's native input consumes arrow keys before the mod can observe them.
+- `↑` / `↓` changes the highlighted result while leaving the input focused and scrolls an offscreen selection into view. These have mod-specific mappings because Herdr's native input consumes arrow keys before the mod can observe them.
 - `Enter` opens the highlighted worktree.
 - The configured **new worktree** shortcut begins the new-worktree flow (default: `Alt+Shift+N`).
 - The configured **remove worktree** shortcut opens Herdr's built-in worktree removal dialog for a non-main highlighted worktree with a Herdr space (default: `Alt+Shift+R`).
@@ -60,9 +60,9 @@ Herdr currently exposes `herdr-app check` for headless initial-load/render valid
 
 Run those tests in a dedicated Herdr profile/configuration and fixture Git repository so they cannot create or remove a person's real worktrees. Keep them separate from `npm test`: native UI tests require a visible desktop session and are expected to be slower and more environment-dependent.
 
-### Required before list auto-scroll
+### List scrolling implementation
 
-Do not replace the regular worktree or branch lists with `v_virtual_list` just to implement selected-row auto-scroll until this end-to-end harness exists. Two virtual-list implementations passed `herdr-app check` but rendered no rows in the live window, so initial-load validation is not enough to safely verify that change. The end-to-end suite must first prove that grouped worktree and branch rows render, then assert that moving selection past the viewport scrolls the selected row into view.
+The regular worktree and branch lists use GPUI's plain `ScrollHandle` to reveal the selected direct child after arrow-key navigation. They deliberately do not use `v_virtual_list`: prior virtual-list implementations passed `herdr-app check` but rendered no rows in the live window. The future end-to-end suite should verify that moving selection past the viewport keeps the selected row visible.
 
 ## Dependencies and assumptions
 

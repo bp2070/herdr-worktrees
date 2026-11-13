@@ -117,6 +117,18 @@ export function moveSelectedId(groups, filter, current, delta) {
   return idOf(entries[next].group, entries[next].entry);
 }
 
+// The scroll area has one direct child per worktree, plus one for a visible
+// empty error group. Return the child index that contains the selected row.
+export function selectedScrollIndex(groups, filter, selected) {
+  let index = 0;
+  for (const group of filterGroups(groups, filter)) {
+    const entryIndex = group.entries.findIndex(entry => idOf(group, entry) === selected);
+    if (entryIndex >= 0) return index + entryIndex;
+    index += group.entries.length || Number(Boolean(group.error));
+  }
+  return -1;
+}
+
 export function pathContains(folder, path) {
   const at = normalizePath(folder);
   const root = normalizePath(path);
