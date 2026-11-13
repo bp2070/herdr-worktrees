@@ -212,10 +212,10 @@ export default class Worktrees extends View {
     const stateColor = entry.dirty === null ? t.dim : entry.dirty ? t.blocked : t.done;
     const status = entry.dirty === null ? "Unknown" : entry.dirty ? "Changes" : "Clean";
     const folderName = worktreePathName(entry.path);
-    // Extend rails two pixels past adjoining rows so logical-pixel rounding
-    // cannot leave seams, while retaining a clear gap beneath the repo header.
+    // Bridge the 1px sibling gap without overlapping the next rail; overlap
+    // would make the shared edge visibly darker at some display scales.
     const connector = div().relative().flex_none().w(16).h_full()
-      .child(div().absolute().left(5).top(index === 0 ? 1 : -2).bottom(index === count - 1 ? 17 : -2).w(1).bg(`${t.dim}88`))
+      .child(div().absolute().left(5).top(index === 0 ? 1 : 0).bottom(index === count - 1 ? 17 : -1).w(1).bg(`${t.dim}88`))
       .child(div().absolute().left(5).top(17).w(11).h(1).bg(`${t.dim}88`));
     return h_flex().id(`worktree-${group.key}-${index}`).flex_none().h(34).px(10).gap(4).items_center().cursor_pointer()
       .on_click((_event, cx) => { this.selected = idOf(group, entry); this.activeInput().focus(); cx.notify(); })
@@ -268,7 +268,7 @@ export default class Worktrees extends View {
             .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(group.main))
             .child(div().flex_none().text_size(11).text_color(t.muted).child(summaryText))))
         .when(Boolean(group.error), groupEl => groupEl.child(div().text_color(t.blocked).child(group.error)))
-        .children(group.entries.map((entry, index) => this.worktreeRow(entry, group, index, group.entries.length, t)));
+        .child(v_flex().gap(1).children(group.entries.map((entry, index) => this.worktreeRow(entry, group, index, group.entries.length, t))));
     }));
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("worktrees-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)

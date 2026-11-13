@@ -38,7 +38,8 @@ export function groupSummary(entries) {
 export function listWindowHeight(groups, filter, minimum = 260, maximum = 760) {
   const shown = filterGroups(groups, filter);
   const entries = shown.reduce((count, group) => count + group.entries.length, 0);
-  const desired = 125 + entries * 34 + shown.length * 39 + Math.max(0, shown.length - 1) * 10;
+  const entryGaps = shown.reduce((count, group) => count + Math.max(0, group.entries.length - 1), 0);
+  const desired = 125 + entries * 34 + entryGaps + shown.length * 39 + Math.max(0, shown.length - 1) * 10;
   return Math.min(maximum, Math.max(minimum, desired));
 }
 
