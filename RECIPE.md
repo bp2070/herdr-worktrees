@@ -1,6 +1,6 @@
 # Herdr Worktrees
 
-A floating window for navigating Git worktrees already represented by Herdr spaces. It groups checkouts under each repository's main folder, lets the person filter and select a worktree with the keyboard, and creates a new checkout from an eligible local branch. The window follows the active Herdr theme and uses a centered spinner while Git data is loading.
+A floating window for navigating Git worktrees already represented by Herdr spaces. It groups checkouts under each repository's main folder, lets the person filter and select a worktree with the keyboard, and creates a new checkout from an eligible local or remote branch. The window follows the active Herdr theme and uses a centered spinner while Git data is loading.
 
 ![Herdr Worktrees](preview.png)
 
@@ -10,13 +10,13 @@ The window has a title, then its content or a loading state. The worktree filter
 
 The main screen has a 34px filter input and a scrollable list. Every repository group shows its short repository name, optional machine name, main checkout path, and a live visible-worktree summary (`3 worktrees · 2 open · 1 changes`). Its worktrees are sorted with worktrees already shown by a Herdr space (`open`) first, then by branch name ascending. Rows are 34px tall with a tight 1px gap between sibling worktrees, while the repository-to-list and repository-to-repository spacing remains more generous; the list finishes with 5px of bottom padding. Rows use a continuous muted tree outline beneath the repository header. The worktree folder name is shown with a Git branch icon and branch name beside it. Compact badges show `Current` for the active Herdr space and `Open` for another open space. A solid attention dot appears only for worktrees with local changes. Branches with an upstream show local remote divergence as `↑N` ahead and `↓N` behind; branches without an upstream show neither counter. The selected row content uses the theme's selected color while its tree outline remains unhighlighted.
 
-The new-worktree flow first shows a branch filter and a scrollable local-branch list, then a name screen with a folder-name input. The name starts as the chosen branch name.
+The new-worktree flow first shows a branch filter and a scrollable branch list (local branches first, then remote-tracking branches, each with a `Local` or `Remote` badge), then a name screen with a folder-name input. The name starts as the chosen branch name (without the remote prefix).
 
 ## How it behaves
 
 The worktree filter receives focus as soon as the overlay lays out, including while the initial Git refresh is loading, and it always retains keyboard focus afterward; no list-focus state exists. The first visible worktree is selected. `↑` and `↓` wrap the highlighted result without leaving the input and scroll an offscreen selection into view. `Enter` opens it. The configured new-worktree action (default `Alt+Shift+N`) starts creation in its repository, and the configured remove action (default `Alt+Shift+R`) opens safe removal for any non-main worktree. It closes any associated Herdr space, checks for uncommitted or untracked changes, and runs `git worktree remove --force`; changed worktrees require typing their folder name. If Git unregisters a worktree but leaves its folder behind, a separate typed confirmation offers direct folder cleanup. The bottom hint reads the live mod key bindings. `Esc` backs out of creation or closes the window. `Tab` has no mapping.
 
-Creating lists local branches that are not currently checked out in any worktree. Enter on a branch continues to naming. Enter on the name creates `~/.herdr/worktrees/<repo>/<folder-name>`, checks out the selected branch there, and starts a new Herdr space. The folder name is sanitized into one safe path component.
+Creating lists local branches and remote-tracking branches (excluding branches already checked out in any worktree or remote branches that already exist locally). Enter on a branch continues to naming. Enter on the name creates `~/.herdr/worktrees/<repo>/<folder-name>`, checks out the selected branch there (creating a local tracking branch for remote selections), and starts a new Herdr space. The folder name is sanitized into one safe path component.
 
 ## Built from
 
@@ -26,7 +26,7 @@ Creating lists local branches that are not currently checked out in any worktree
 
 ## Watch out
 
-Only repositories with an existing Herdr space appear. The Worktrees window lists local branches only and intentionally omits any branch already checked out by a worktree. Removal is implemented in this mod: it protects changed worktrees with a typed folder-name confirmation and offers direct cleanup only after Git has verified that the worktree is no longer registered. `herdr-app check` validates initial loading and eager UI construction, not keyboard focus, async Git calls, or live layout behavior.
+Only repositories with an existing Herdr space appear. The Worktrees window lists local and already-fetched remote-tracking branches (`refs/heads` and `refs/remotes`, without auto-fetching) and intentionally omits any branch already checked out by a worktree. Removal is implemented in this mod: it protects changed worktrees with a typed folder-name confirmation and offers direct cleanup only after Git has verified that the worktree is no longer registered. `herdr-app check` validates initial loading and eager UI construction, not keyboard focus, async Git calls, or live layout behavior.
 
 ## Done when
 

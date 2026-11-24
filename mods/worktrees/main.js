@@ -3,7 +3,7 @@ import { h_flex, v_flex, InputState, Input, Scrollbar, ScrollHandle } from "gpui
 import { closeOverlay, exec, home, keys, nextCommand, openOverlay, panes, props, run, setShared, shared, spaces, theme } from "herdr";
 import {
   cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, FocusRequests, groupKey, groupSummary, idOf, listWindowHeight, moveIndex, moveSelectedId,
-  folderNameMatches, pathContains, repoName, selectedId, selectedScrollIndex, slug, spaceForWorktree, trackingStatus, visibleEntries, worktreeDestination, worktreePathName, worktrees,
+  folderNameMatches, parseBranches, pathContains, repoName, selectedId, selectedScrollIndex, slug, spaceForWorktree, trackingStatus, visibleEntries, worktreeAddArgs, worktreeDestination, worktreePathName, worktrees,
 } from "./model.js";
 
 const CACHE_KEY = "worktrees.cache.v2";
@@ -139,11 +139,11 @@ export default class Worktrees extends View {
     cx.notify();
     cx.spawn(async cx => {
       try {
-        const result = await git(group.main, ["for-each-ref", "--format=%(refname:short)", "refs/heads"], group.machine);
+        const result = await git(group.main, ["for-each-ref", "--format=%(refname)%09%(symref)", "refs/heads", "refs/remotes"], group.machine);
         if (!result.ok) this.error = result.err || "Could not list branches.";
         else {
-          this.branches = eligibleBranches(result.out.split("\n").filter(Boolean), group.entries);
-          if (!this.branches.length) this.error = "All local branches already have a worktree.";
+          this.branches = eligibleBranches(parseBranches(result.out), group.entries);
+          if (!this.branches.length) this.error = "All local and remote branches already have a worktree.";
         }
       } catch (error) { this.error = String(error?.message ?? error); }
       finally {
@@ -156,7 +156,7 @@ export default class Worktrees extends View {
   chooseBranch(cx) {
     const branch = this.shownBranches()[this.branchAt];
     if (!branch) return;
-    this.branch = branch; this.worktreeName = branch; this.mode = "name"; this.focusRequests.request("name"); this.nameInput.set_value(branch); cx.notify();
+    this.branch = branch; this.worktreeName = branch.name; this.mode = "name"; this.focusRequests.request("name"); this.nameInput.set_value(branch.name); cx.notify();
   }
 
   async machineHome(machine) {
@@ -176,7 +176,7 @@ export default class Worktrees extends View {
       try {
         const userHome = await this.machineHome(group.machine);
         const path = worktreeDestination(userHome, group.name, name);
-        const result = await git(group.main, ["worktree", "add", path, this.branch], group.machine);
+        const result = await git(group.main, worktreeAddArgs(path, this.branch), group.machine);
         if (!result.ok) throw new Error(result.err || "git worktree add failed.");
         setShared(CACHE_KEY, null);
         this.close();
@@ -396,9 +396,10 @@ export default class Worktrees extends View {
   renderBranches(t) {
     const branches = this.shownBranches();
     const rows = v_flex().id("branch-list").size_full().gap(2).overflow_y_scroll().track_scroll(this.branchScroll).children(branches.map((branch, index) =>
-      h_flex().id(`branch-${index}`).flex_none().h(34).px(10).items_center().rounded(6).bg(index === this.branchAt ? t.selected : t.surface).hover(state => state.bg(t.hover)).cursor_pointer()
+      h_flex().id(`branch-${index}`).flex_none().h(34).px(10).gap(8).items_center().rounded(6).bg(index === this.branchAt ? t.selected : t.surface).hover(state => state.bg(t.hover)).cursor_pointer()
         .on_click((_event, cx) => { this.branchAt = index; this.activeInput().focus(); cx.notify(); })
-        .child(div().truncate().text_color(t.foreground).child(branch)),
+        .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(branch.label))
+        .child(this.badge(branch.kind === "remote" ? "Remote" : "Local", branch.kind === "remote" ? t.muted : t.accent)),
     ));
     const list = div().relative().flex_1().min_h(0).child(rows).child(Scrollbar.vertical("branch-list").absolute().inset_0());
     return v_flex().flex_1().min_h(0).gap(10)
@@ -412,7 +413,7 @@ export default class Worktrees extends View {
 
   renderName(t) {
     return v_flex().flex_1().gap(10)
-      .child(div().text_color(t.muted).child(`Create a worktree for ${this.branch ?? "the selected branch"}.`))
+      .child(div().text_color(t.muted).child(`Create a worktree for ${this.branch?.label ?? "the selected branch"}.`))
       .child(div().text_size(11).text_color(t.dim).child("Folder name"))
       .child(this.inputField(this.nameInput, t, "name"))
       .when(Boolean(this.error), el => el.child(div().text_color(t.blocked).child(this.error)))

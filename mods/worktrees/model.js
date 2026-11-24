@@ -66,14 +66,48 @@ export function worktrees(text, hasMainCheckout = true) {
   return rows;
 }
 
+export function parseBranches(text) {
+  const branches = [];
+  for (const rawLine of text.split(/\r?\n/)) {
+    if (!rawLine.trim()) continue;
+    const [ref, symref = ""] = rawLine.split("\t");
+    if (symref.trim()) continue;
+    if (ref.startsWith("refs/heads/")) {
+      const name = ref.slice("refs/heads/".length);
+      if (name) branches.push({ name, label: name, kind: "local", remote: null, ref });
+    } else if (ref.startsWith("refs/remotes/")) {
+      const label = ref.slice("refs/remotes/".length);
+      const slash = label.indexOf("/");
+      if (slash > 0 && slash < label.length - 1) {
+        branches.push({ name: label.slice(slash + 1), label, kind: "remote", remote: label.slice(0, slash), ref });
+      }
+    }
+  }
+  return branches;
+}
+
 export function eligibleBranches(branches, entries) {
   const checkedOut = new Set(entries.map(entry => entry.branch));
-  return branches.filter(branch => !checkedOut.has(branch));
+  const localNames = new Set(branches.filter(branch => branch.kind === "local").map(branch => branch.name));
+  return branches
+    .filter(branch => !checkedOut.has(branch.name) && (branch.kind !== "remote" || !localNames.has(branch.name)))
+    .sort((a, b) => {
+      const kindOrder = Number(a.kind === "remote") - Number(b.kind === "remote");
+      if (kindOrder) return kindOrder;
+      const aLabel = a.label.toLowerCase();
+      const bLabel = b.label.toLowerCase();
+      return aLabel < bLabel ? -1 : aLabel > bLabel ? 1 : a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
+    });
 }
 
 export function filterBranches(branches, filter) {
   const query = filter.trim().toLowerCase();
-  return branches.filter(branch => !query || branch.toLowerCase().includes(query));
+  return branches.filter(branch => !query || branch.label.toLowerCase().includes(query));
+}
+
+export function worktreeAddArgs(path, branch) {
+  if (branch.kind === "remote") return ["worktree", "add", "--track", "-b", branch.name, path, branch.ref];
+  return ["worktree", "add", path, branch.name];
 }
 
 // Open worktrees lead their repository's list. Use code-point comparison rather

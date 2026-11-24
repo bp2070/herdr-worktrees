@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   cachedGroups, cacheSnapshot, commandName, eligibleBranches, filterBranches, filterGroups, folderNameMatches, FocusRequests, groupKey, groupSummary, idOf, moveIndex, moveSelectedId,
-  listWindowHeight, normalizePath, pathContains, repoName, selectedId, selectedScrollIndex, slug, sortWorktrees, spaceForWorktree, trackingStatus, worktreePathName,
+  listWindowHeight, normalizePath, parseBranches, pathContains, repoName, selectedId, selectedScrollIndex, slug, sortWorktrees, spaceForWorktree, trackingStatus, worktreeAddArgs, worktreePathName,
   visibleEntries, worktreeDestination, worktrees,
 } from "../mods/worktrees/model.js";
 
@@ -60,17 +60,62 @@ test("worktrees does not mark a linked worktree as main for a bare repository", 
   assert.deepEqual(worktrees(input, false), [{ path: "C:/worktrees/app/psif-6166", branch: "psif-6166", main: false }]);
 });
 
-test("eligibleBranches excludes branches already checked out by another worktree", () => {
+test("parseBranches reads local and remote refs and skips symbolic refs", () => {
+  const input = [
+    "refs/heads/main\t",
+    "refs/heads/feature/login\t",
+    "refs/remotes/origin/HEAD\trefs/remotes/origin/main",
+    "refs/remotes/origin/main\t",
+    "refs/remotes/origin/feature/remote-only\t",
+    "refs/remotes/upstream/release/v2\t",
+  ].join("\r\n");
+
+  assert.deepEqual(parseBranches(input), [
+    { name: "main", label: "main", kind: "local", remote: null, ref: "refs/heads/main" },
+    { name: "feature/login", label: "feature/login", kind: "local", remote: null, ref: "refs/heads/feature/login" },
+    { name: "main", label: "origin/main", kind: "remote", remote: "origin", ref: "refs/remotes/origin/main" },
+    { name: "feature/remote-only", label: "origin/feature/remote-only", kind: "remote", remote: "origin", ref: "refs/remotes/origin/feature/remote-only" },
+    { name: "release/v2", label: "upstream/release/v2", kind: "remote", remote: "upstream", ref: "refs/remotes/upstream/release/v2" },
+  ]);
+});
+
+test("eligibleBranches excludes checked-out branches and remote duplicates of local branches, sorting local before remote", () => {
+  const branches = parseBranches([
+    "refs/heads/main\t",
+    "refs/heads/fix/menu\t",
+    "refs/heads/feature/login\t",
+    "refs/remotes/origin/main\t",
+    "refs/remotes/origin/feature/login\t",
+    "refs/remotes/origin/zeta\t",
+    "refs/remotes/origin/alpha\t",
+  ].join("\n"));
+
   assert.deepEqual(
-    eligibleBranches(["main", "feature/login", "fix/menu"], [{ branch: "main" }, { branch: "fix/menu" }]),
-    ["feature/login"],
+    eligibleBranches(branches, [{ branch: "main" }, { branch: "fix/menu" }]).map(branch => `${branch.kind}:${branch.label}`),
+    ["local:feature/login", "remote:origin/alpha", "remote:origin/zeta"],
   );
 });
 
-test("filterBranches matches case-insensitively and ignores surrounding whitespace", () => {
-  const branches = ["main", "feature/Login", "fix/menu"];
-  assert.deepEqual(filterBranches(branches, " login "), ["feature/Login"]);
+test("filterBranches matches case-insensitively on branch labels and ignores surrounding whitespace", () => {
+  const branches = parseBranches([
+    "refs/heads/main\t",
+    "refs/heads/feature/Login\t",
+    "refs/remotes/origin/fix/menu\t",
+  ].join("\n"));
+  assert.deepEqual(filterBranches(branches, " login ").map(branch => branch.label), ["feature/Login"]);
+  assert.deepEqual(filterBranches(branches, "origin/").map(branch => branch.label), ["origin/fix/menu"]);
   assert.deepEqual(filterBranches(branches, ""), branches);
+});
+
+test("worktreeAddArgs checks out local branches directly and tracks remote branches", () => {
+  assert.deepEqual(
+    worktreeAddArgs("C:/worktrees/app/login", { name: "feature/login", label: "feature/login", kind: "local", remote: null, ref: "refs/heads/feature/login" }),
+    ["worktree", "add", "C:/worktrees/app/login", "feature/login"],
+  );
+  assert.deepEqual(
+    worktreeAddArgs("C:/worktrees/app/login", { name: "feature/login", label: "origin/feature/login", kind: "remote", remote: "origin", ref: "refs/remotes/origin/feature/login" }),
+    ["worktree", "add", "--track", "-b", "feature/login", "C:/worktrees/app/login", "refs/remotes/origin/feature/login"],
+  );
 });
 
 test("group and repository helpers preserve machine separation and repository names", () => {

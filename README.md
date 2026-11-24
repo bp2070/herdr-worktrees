@@ -1,6 +1,6 @@
 # Herdr Worktrees
 
-A floating window for browsing Git worktrees as grouped repository lists, switching workspaces, and creating worktrees from eligible local branches.
+A floating window for browsing Git worktrees as grouped repository lists, switching workspaces, and creating worktrees from eligible local or remote branches.
 
 ## Preview
 
@@ -24,7 +24,7 @@ Default global shortcut: `Alt+Shift+W`.
 
 The bottom hint reads Herdr's live `mod:worktrees` key bindings, so it updates when either action's mapping changes.
 
-The create flow lists local branches not already checked out by a worktree. It checks out the selected branch at `~/.herdr/worktrees/<repo>/<folder-name>` and opens it as a new Herdr space.
+The create flow lists local branches and remote-tracking branches (excluding branches already checked out by a worktree or already present locally) with `Local` / `Remote` badges. It checks out the selected branch (creating a local tracking branch for remote selections) at `~/.herdr/worktrees/<repo>/<folder-name>` and opens it as a new Herdr space.
 
 ## Validation
 
